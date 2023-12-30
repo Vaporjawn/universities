@@ -17,7 +17,16 @@
     "type": "git",
     "url": "git+https://github.com/Vaporjawn/universities.git"
   },
-  "keywords": ["university", "college", "universities", "colleges", "school", "schools", "education", "higher education"],
+  "keywords": [
+    "university",
+    "college",
+    "universities",
+    "colleges",
+    "school",
+    "schools",
+    "education",
+    "higher education"
+  ],
   "author": "Vaporjawn",
   "license": "ISC",
   "bugs": {
