@@ -1,0 +1,27 @@
+{
+  "name": "universities",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "ts-node ./src/index.ts",
+    "build": "tsc",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint . --ext .ts --ext .js",
+    "format": "prettier --write . --ext .ts --ext .js",
+    "check": "npm install && npm run build && npm run format && npm run lint && npm run test:coverage",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vaporjawn/universities.git"
+  },
+  "keywords": ["university", "college", "universities", "colleges", "school", "schools", "education", "higher education"],
+  "author": "Vaporjawn",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Vaporjawn/universities/issues"
+  },
+  "homepage": "https://github.com/Vaporjawn/universities#readme"
+}
