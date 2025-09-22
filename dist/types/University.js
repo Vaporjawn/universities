@@ -29,7 +29,7 @@ var UniversitySize;
     UniversitySize["SMALL"] = "small";
     UniversitySize["MEDIUM"] = "medium";
     UniversitySize["LARGE"] = "large";
-    UniversitySize["VERY_LARGE"] = "very-large"; // > 30,000 students
+    UniversitySize["VERY_LARGE"] = "very-large";
 })(UniversitySize || (exports.UniversitySize = UniversitySize = {}));
 /**
  * Academic degree levels offered

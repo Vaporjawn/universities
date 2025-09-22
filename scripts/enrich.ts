@@ -64,7 +64,9 @@ async function main() {
   await ensureDirs();
 
   console.log('Loading base universities...');
-  const base = await loadBaseUniversities(path.resolve(__dirname, '..', 'world-universities.csv').replace('/scripts', ''));
+  const base = await loadBaseUniversities(
+    path.resolve(__dirname, '..', 'world-universities.csv').replace('/scripts', '')
+  );
 
   const slice = base.slice(opts.start || 0, opts.limit ? (opts.start || 0) + opts.limit : undefined);
   console.log(`Total to process: ${slice.length}`);

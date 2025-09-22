@@ -74,7 +74,7 @@ export enum UniversityType {
   RESEARCH = 'research',
   TEACHING = 'teaching',
   ONLINE = 'online',
-  SPECIALIZED = 'specialized'
+  SPECIALIZED = 'specialized',
 }
 
 /**
@@ -82,10 +82,10 @@ export enum UniversityType {
  */
 export enum UniversitySize {
   VERY_SMALL = 'very-small', // < 1,000 students
-  SMALL = 'small',           // 1,000 - 5,000 students
-  MEDIUM = 'medium',         // 5,000 - 15,000 students
-  LARGE = 'large',           // 15,000 - 30,000 students
-  VERY_LARGE = 'very-large'  // > 30,000 students
+  SMALL = 'small', // 1,000 - 5,000 students
+  MEDIUM = 'medium', // 5,000 - 15,000 students
+  LARGE = 'large', // 15,000 - 30,000 students
+  VERY_LARGE = 'very-large', // > 30,000 students
 }
 
 /**
@@ -98,7 +98,7 @@ export enum DegreeLevel {
   MASTER = 'master',
   DOCTORAL = 'doctoral',
   PROFESSIONAL = 'professional',
-  POSTDOCTORAL = 'postdoctoral'
+  POSTDOCTORAL = 'postdoctoral',
 }
 
 /**
@@ -153,9 +153,9 @@ export interface SocialMediaLinks {
  */
 export interface DataQuality {
   completeness: number; // 0-1 scale
-  accuracy: number;     // 0-1 scale
-  freshness: number;    // 0-1 scale (how recent the data is)
-  reliability: number;  // 0-1 scale
+  accuracy: number; // 0-1 scale
+  freshness: number; // 0-1 scale (how recent the data is)
+  reliability: number; // 0-1 scale
 }
 
 /**
@@ -188,7 +188,7 @@ export enum SortOption {
   COUNTRY = 'country',
   FOUNDED_YEAR = 'foundedYear',
   STUDENT_COUNT = 'studentCount',
-  DATA_QUALITY = 'dataQuality'
+  DATA_QUALITY = 'dataQuality',
 }
 
 /**

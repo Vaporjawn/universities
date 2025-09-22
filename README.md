@@ -24,14 +24,14 @@ Core goals:
 
 1. Provide immediate, zero‑network access to a clean base list of universities (name, domains, country info, web site) sourced from the public world universities dataset.
 2. Offer an enrichment layer (opt‑in) that scrapes each university homepage respectfully (rate‑limited + retries) to infer or collect:
-	 - Descriptions / taglines / motto
-	 - Contact and location hints
-	 - Founding year
-	 - Academic programs & faculties (heuristic extraction)
-	 - Social media links
-	 - Institutional classification (public/private, research, technical, community, etc. — heuristic)
-	 - Degree levels (undergraduate / graduate / doctoral)
-	 - Data quality scoring for traceability
+   - Descriptions / taglines / motto
+   - Contact and location hints
+   - Founding year
+   - Academic programs & faculties (heuristic extraction)
+   - Social media links
+   - Institutional classification (public/private, research, technical, community, etc. — heuristic)
+   - Degree levels (undergraduate / graduate / doctoral)
+   - Data quality scoring for traceability
 3. Expose ergonomic programmatic APIs for search, filtering, and statistics.
 4. Provide a CLI for quick querying, enrichment, and aggregated stats generation.
 5. Remain transparent, reproducible, and respectful of target sites (configurable concurrency, caching, resumability, optional full‑dataset execution).
@@ -104,12 +104,12 @@ import { loadBaseUniversities } from 'universities/dist/data/loadBase';
 import { UniversityRepository } from 'universities/dist/repository/UniversityRepository';
 
 async function example() {
-	const base = await loadBaseUniversities();
-	const repo = new UniversityRepository(base);
+  const base = await loadBaseUniversities();
+  const repo = new UniversityRepository(base);
 
-	const results = repo.search({ countryCode: 'US', name: 'state', limit: 20 });
-	console.log(results.slice(0, 3));
-	console.log(repo.stats());
+  const results = repo.search({ countryCode: 'US', name: 'state', limit: 20 });
+  console.log(results.slice(0, 3));
+  console.log(repo.stats());
 }
 
 example();
@@ -121,26 +121,26 @@ example();
 
 ```ts
 interface University {
-	id: string;               // Stable hash/id generation
-	name: string;
-	country: string;
-	countryCode: string;
-	alphaTwoCode?: string;    // If present in source
-	webPages: string[];       // One or more homepage URLs
-	domains: string[];        // Domain(s)
-	stateProvince?: string;
-	// Enriched fields (optional until scraping):
-	description?: string;
-	motto?: string;
-	foundingYear?: number;
-	location?: string;
-	contact?: { email?: string; phone?: string; address?: string };
-	programs?: { name: string; degreeLevels?: string[] }[];
-	faculties?: { name: string; description?: string }[];
-	social?: { twitter?: string; facebook?: string; instagram?: string; linkedin?: string; youtube?: string };
-	classification?: { type?: string; degreeLevel?: string[] };
-	dataQuality?: { score: number; factors: string[] };
-	enrichedAt?: string;      // ISO timestamp when enrichment occurred
+  id: string; // Stable hash/id generation
+  name: string;
+  country: string;
+  countryCode: string;
+  alphaTwoCode?: string; // If present in source
+  webPages: string[]; // One or more homepage URLs
+  domains: string[]; // Domain(s)
+  stateProvince?: string;
+  // Enriched fields (optional until scraping):
+  description?: string;
+  motto?: string;
+  foundingYear?: number;
+  location?: string;
+  contact?: { email?: string; phone?: string; address?: string };
+  programs?: { name: string; degreeLevels?: string[] }[];
+  faculties?: { name: string; description?: string }[];
+  social?: { twitter?: string; facebook?: string; instagram?: string; linkedin?: string; youtube?: string };
+  classification?: { type?: string; degreeLevel?: string[] };
+  dataQuality?: { score: number; factors: string[] };
+  enrichedAt?: string; // ISO timestamp when enrichment occurred
 }
 ```
 
@@ -186,12 +186,12 @@ node dist/scripts/enrich.js --concurrency 3 --resume
 
 Flags (planned / implemented):
 
-| Flag | Description |
-|------|-------------|
-| `--concurrency <n>` | Number of parallel fetches (default modest to prevent overloading sites). |
-| `--resume` | Skip already cached universities (looks in `data/cache/`). |
-| `--limit <n>` | (Planned) Process only the first N universities for sampling. |
-| `--country-code <CC>` | (Planned) Restrict enrichment to a country subset. |
+| Flag                  | Description                                                               |
+| --------------------- | ------------------------------------------------------------------------- |
+| `--concurrency <n>`   | Number of parallel fetches (default modest to prevent overloading sites). |
+| `--resume`            | Skip already cached universities (looks in `data/cache/`).                |
+| `--limit <n>`         | (Planned) Process only the first N universities for sampling.             |
+| `--country-code <CC>` | (Planned) Restrict enrichment to a country subset.                        |
 
 Outputs:
 
@@ -200,11 +200,11 @@ Outputs:
 
 ## CLI Reference
 
-| Command | Purpose | Key Options |
-|---------|---------|-------------|
-| `list` | Filter & display base (or partially enriched) universities | `--name`, `--country`, `--country-code`, `--limit`, `--json` |
-| `enrich <url>` | Enrich a single university homepage | (none yet; uses internal defaults) |
-| `stats` | Show aggregated statistics | None |
+| Command        | Purpose                                                    | Key Options                                                  |
+| -------------- | ---------------------------------------------------------- | ------------------------------------------------------------ |
+| `list`         | Filter & display base (or partially enriched) universities | `--name`, `--country`, `--country-code`, `--limit`, `--json` |
+| `enrich <url>` | Enrich a single university homepage                        | (none yet; uses internal defaults)                           |
+| `stats`        | Show aggregated statistics                                 | None                                                         |
 
 Examples:
 
@@ -260,11 +260,11 @@ Please consult (or propose) a `CONTRIBUTING.md` for evolving guidelines. Ethical
 
 ## Troubleshooting
 
-| Issue | Cause | Resolution |
-|-------|-------|------------|
-| `ERR_REQUIRE_ESM` when using CLI `list` | ESM‑only dependency (`p-queue`) pulled into non‑enrichment path | Resolved via lazy import; update to latest version of package |
-| Empty enrichment fields | Site structure variation | Re‑run later or inspect HTML; heuristics will improve over time |
-| Slow enrichment run | Network latency / conservative concurrency | Increase `--concurrency` cautiously |
+| Issue                                   | Cause                                                           | Resolution                                                      |
+| --------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------- |
+| `ERR_REQUIRE_ESM` when using CLI `list` | ESM‑only dependency (`p-queue`) pulled into non‑enrichment path | Resolved via lazy import; update to latest version of package   |
+| Empty enrichment fields                 | Site structure variation                                        | Re‑run later or inspect HTML; heuristics will improve over time |
+| Slow enrichment run                     | Network latency / conservative concurrency                      | Increase `--concurrency` cautiously                             |
 
 ## Security
 
@@ -279,9 +279,11 @@ This repository is distributed under the terms of the MIT License. See `LICENSE`
 Inspired by the open university datasets community and contributors who maintain baseline CSV resources. Future improvements will strive for transparency, repeatability, and respectful data gathering.
 
 ---
+
 Give a ⭐ if you find this useful and feel free to open issues for ideas or enhancements.
 
 ---
+
 <sup>Generated documentation improvements are iterative; feel free to propose edits.</sup>
 
 ## Technologies

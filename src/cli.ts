@@ -65,14 +65,15 @@ async function loadRepository(): Promise<UniversityRepository> {
     resolvedCsv = path.join(__dirname, '..', '..', 'world-universities.csv');
   }
   const base = await loadBaseUniversities(resolvedCsv);
-  const universities: University[] = base.map(r =>
-    ({
-      ...toPartialUniversity(r),
-      id: `${r.countryCode}-${r.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
-      lastUpdated: new Date(),
-      dataQuality: { completeness: 0.1, accuracy: 0.5, freshness: 1, reliability: 0.4 },
-      sources: [r.url],
-    }) as University
+  const universities: University[] = base.map(
+    r =>
+      ({
+        ...toPartialUniversity(r),
+        id: `${r.countryCode}-${r.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+        lastUpdated: new Date(),
+        dataQuality: { completeness: 0.1, accuracy: 0.5, freshness: 1, reliability: 0.4 },
+        sources: [r.url],
+      }) as University
   );
   return new UniversityRepository(universities);
 }

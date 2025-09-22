@@ -1,7 +1,7 @@
 import axios, { AxiosResponse } from 'axios';
 import * as cheerio from 'cheerio';
 import PQueue from 'p-queue';
-import { University, UniversityType, UniversitySize, DegreeLevel, DataQuality } from '../types/University';
+import { University, UniversityType, DegreeLevel, DataQuality } from '../types/University';
 
 /**
  * Configuration for web scraping operations
@@ -50,7 +50,7 @@ export class UniversityScraper {
     if (!baseUniversity.url) {
       throw new Error('University URL is required for scraping');
     }
-    return new Promise<University>((resolve) => {
+    return new Promise<University>(resolve => {
       this.queue.add(async () => {
         let enrichedData: Partial<University> = {};
         try {
@@ -93,12 +93,12 @@ export class UniversityScraper {
         timeout: this.config.timeout,
         headers: {
           'User-Agent': this.config.userAgent,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'en-US,en;q=0.5',
           'Accept-Encoding': 'gzip, deflate',
-          'Connection': 'keep-alive'
+          Connection: 'keep-alive',
         },
-        maxRedirects: 5
+        maxRedirects: 5,
       });
 
       return response;
@@ -114,7 +114,10 @@ export class UniversityScraper {
   /**
    * Extract university data from HTML
    */
-  private async extractUniversityData($: cheerio.CheerioAPI, baseUniversity: Partial<University>): Promise<Partial<University>> {
+  private async extractUniversityData(
+    $: cheerio.CheerioAPI,
+    baseUniversity: Partial<University>
+  ): Promise<Partial<University>> {
     const data: Partial<University> = {};
 
     // Extract description from meta tags or about sections
@@ -178,7 +181,7 @@ export class UniversityScraper {
       '.description p:first-of-type',
       '.intro p:first-of-type',
       '.overview p:first-of-type',
-      'main p:first-of-type'
+      'main p:first-of-type',
     ];
 
     for (const selector of aboutSelectors) {
@@ -195,13 +198,10 @@ export class UniversityScraper {
    * Extract contact information
    */
   private extractContactInfo($: cheerio.CheerioAPI) {
-    const contact: any = {};
+    const contact: Record<string, string> = {};
 
     // Extract phone numbers
-    const phonePatterns = [
-      /\+?[\d\s\-\(\)]{10,}/g,
-      /tel:[\+\d\-\(\)\s]+/gi
-    ];
+    const phonePatterns = [/\+?[\d\s\-()]{10,}/g, /tel:[+\d\-()s]+/gi];
 
     $('a[href^="tel:"], .phone, .contact-phone').each((_, el) => {
       const text = $(el).text() || $(el).attr('href') || '';
@@ -224,9 +224,10 @@ export class UniversityScraper {
         return false;
       }
 
-      const emailMatch = text.match(/[\w\.-]+@[\w\.-]+\.\w+/);
+      const emailMatch = text.match(/[\w.-]+@[\w.-]+\.\w+/);
       if (emailMatch) {
-        contact.email = emailMatch[0];
+        const [email] = emailMatch;
+        contact.email = email;
         return false;
       }
     });
@@ -238,7 +239,7 @@ export class UniversityScraper {
    * Extract location information
    */
   private extractLocationInfo($: cheerio.CheerioAPI) {
-    const location: any = {};
+    const location: Record<string, string> = {};
 
     // Look for address in various places
     const addressSelectors = [
@@ -246,7 +247,7 @@ export class UniversityScraper {
       '.location',
       '.contact-address',
       '[itemtype="http://schema.org/PostalAddress"]',
-      '.footer address'
+      '.footer address',
     ];
 
     for (const selector of addressSelectors) {
@@ -276,7 +277,7 @@ export class UniversityScraper {
       /established.{0,20}(\d{4})/i,
       /since.{0,20}(\d{4})/i,
       /(\d{4}).{0,20}founded/i,
-      /(\d{4}).{0,20}established/i
+      /(\d{4}).{0,20}established/i,
     ];
 
     const text = $('body').text();
@@ -338,16 +339,30 @@ export class UniversityScraper {
    * Extract academic programs
    */
   private extractPrograms($: cheerio.CheerioAPI) {
-    const programs: any[] = [];
+    const programs: { name: string; degreeLevel: DegreeLevel }[] = [];
 
-    // Look for program/degree listings
-    $('.program, .degree, .course').each((_, el) => {
+    // Look for program listings
+    $('.program, .course, .degree').each((_, el) => {
       const name = $(el).text().trim();
       if (name && name.length > 5 && name.length < 200) {
-        programs.push({
-          name,
-          degreeLevel: this.classifyDegreeLevel(name)
-        });
+        // Determine degree level based on keywords
+        let degreeLevel: DegreeLevel = DegreeLevel.BACHELOR; // Default
+
+        const lowerName = name.toLowerCase();
+        if (lowerName.includes('phd') || lowerName.includes('doctorate') || lowerName.includes('doctoral')) {
+          degreeLevel = DegreeLevel.DOCTORAL;
+        } else if (
+          lowerName.includes('master') ||
+          lowerName.includes('msc') ||
+          lowerName.includes('mba') ||
+          lowerName.includes('ma ')
+        ) {
+          degreeLevel = DegreeLevel.MASTER;
+        } else if (lowerName.includes('certificate') || lowerName.includes('diploma')) {
+          degreeLevel = DegreeLevel.CERTIFICATE;
+        }
+
+        programs.push({ name, degreeLevel });
       }
     });
 
@@ -358,15 +373,19 @@ export class UniversityScraper {
    * Extract faculties/schools
    */
   private extractFaculties($: cheerio.CheerioAPI) {
-    const faculties: any[] = [];
+    const faculties: { name: string }[] = [];
 
     // Look for faculty/school listings
     $('.faculty, .school, .college').each((_, el) => {
       const name = $(el).text().trim();
-      if (name && name.length > 5 && name.length < 200 &&
-          (name.toLowerCase().includes('faculty') ||
-           name.toLowerCase().includes('school') ||
-           name.toLowerCase().includes('college'))) {
+      if (
+        name &&
+        name.length > 5 &&
+        name.length < 200 &&
+        (name.toLowerCase().includes('faculty') ||
+          name.toLowerCase().includes('school') ||
+          name.toLowerCase().includes('college'))
+      ) {
         faculties.push({ name });
       }
     });
@@ -378,7 +397,7 @@ export class UniversityScraper {
    * Extract social media links
    */
   private extractSocialMedia($: cheerio.CheerioAPI) {
-    const socialMedia: any = {};
+    const socialMedia: Record<string, string> = {};
 
     // Facebook
     $('a[href*="facebook.com"]').each((_, el) => {
@@ -432,12 +451,7 @@ export class UniversityScraper {
    * Extract university motto
    */
   private extractMotto($: cheerio.CheerioAPI): string | undefined {
-    const mottoSelectors = [
-      '.motto',
-      '.tagline',
-      '.slogan',
-      '[class*="motto"]'
-    ];
+    const mottoSelectors = ['.motto', '.tagline', '.slogan', '[class*="motto"]'];
 
     for (const selector of mottoSelectors) {
       const motto = $(selector).text().trim();
@@ -469,10 +483,20 @@ export class UniversityScraper {
     if (nameLower.includes('phd') || nameLower.includes('doctorate') || nameLower.includes('doctoral')) {
       return DegreeLevel.DOCTORAL;
     }
-    if (nameLower.includes('master') || nameLower.includes('mba') || nameLower.includes('msc') || nameLower.includes('ma ')) {
+    if (
+      nameLower.includes('master') ||
+      nameLower.includes('mba') ||
+      nameLower.includes('msc') ||
+      nameLower.includes('ma ')
+    ) {
       return DegreeLevel.MASTER;
     }
-    if (nameLower.includes('bachelor') || nameLower.includes('undergraduate') || nameLower.includes('bsc') || nameLower.includes('ba ')) {
+    if (
+      nameLower.includes('bachelor') ||
+      nameLower.includes('undergraduate') ||
+      nameLower.includes('bsc') ||
+      nameLower.includes('ba ')
+    ) {
       return DegreeLevel.BACHELOR;
     }
     if (nameLower.includes('associate')) {
@@ -493,7 +517,10 @@ export class UniversityScraper {
     const country = university.countryCode || university.country || 'unknown';
     const domain = university.url ? this.extractDomain(university.url) : 'unknown';
 
-    return `${country.toLowerCase()}-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${domain.replace(/[^a-z0-9]/g, '-')}`;
+    return `${country.toLowerCase()}-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${domain.replace(
+      /[^a-z0-9]/g,
+      '-'
+    )}`;
   }
 
   /**
@@ -501,8 +528,15 @@ export class UniversityScraper {
    */
   private assessDataQuality(data: Partial<University>): DataQuality {
     const fields = [
-      'description', 'foundedYear', 'type', 'contact', 'city',
-      'programs', 'faculties', 'motto', 'domain'
+      'description',
+      'foundedYear',
+      'type',
+      'contact',
+      'city',
+      'programs',
+      'faculties',
+      'motto',
+      'domain',
     ];
 
     const completeness = fields.filter(field => data[field as keyof University]).length / fields.length;
@@ -511,7 +545,7 @@ export class UniversityScraper {
       completeness,
       accuracy: 0.8, // Assume good accuracy from source websites
       freshness: 1.0, // Data is fresh since we just scraped it
-      reliability: completeness * 0.9 // Reliability correlates with completeness
+      reliability: completeness * 0.9, // Reliability correlates with completeness
     };
   }
 
@@ -529,7 +563,7 @@ export class UniversityScraper {
     return {
       pending: this.queue.pending,
       size: this.queue.size,
-      isPaused: this.queue.isPaused
+      isPaused: this.queue.isPaused,
     };
   }
 
