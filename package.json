@@ -1,15 +1,28 @@
 {
   "name": "universities",
-  "version": "0.0.1",
-  "description": "",
-  "main": "./src/index.js",
+  "version": "0.0.2",
+  "description": "Worldwide universities dataset + TypeScript API + CLI with optional respectful enrichment (programs, classification, social links, metadata)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "bin": {
+    "universities": "dist/cli.js"
+  },
   "scripts": {
     "start": "ts-node ./src/index.ts",
-    "build": "tsc",
+    "build": "rimraf dist && tsc",
     "test": "jest",
     "test:coverage": "jest --coverage",
     "lint": "eslint . --ext .ts --ext .js",
     "format": "prettier --write . --ext .ts --ext .js",
+    "generate:data": "ts-node ./scripts/generateBaseData.ts",
+    "enrich": "ts-node ./scripts/enrich.ts",
     "check": "npm install && npm run build && npm run format && npm run lint && npm run test:coverage",
     "prepublishOnly": "npm run build"
   },
@@ -28,12 +41,13 @@
     "higher education"
   ],
   "author": "Vaporjawn",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/Vaporjawn/universities/issues"
   },
   "homepage": "https://github.com/Vaporjawn/universities#readme",
   "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
     "@types/jest": "^29.5.11",
     "@typescript-eslint/eslint-plugin": "^6.14.0",
     "@typescript-eslint/parser": "^6.14.0",
@@ -43,9 +57,17 @@
     "jsdoc": "^4.0.2",
     "prettier": "^3.1.1",
     "ts-jest": "^29.1.1",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "rimraf": "^5.0.5"
   },
   "dependencies": {
+    "axios": "^1.12.2",
+    "cheerio": "^1.1.2",
+    "commander": "^14.0.1",
+    "csv-parser": "^3.2.0",
+    "fs-extra": "^11.3.2",
+    "p-limit": "^7.1.1",
+    "p-queue": "^8.1.1",
     "ts-node": "^10.9.2"
   }
 }

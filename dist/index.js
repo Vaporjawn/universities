@@ -25,3 +25,4 @@ Object.defineProperty(exports, "UniversityScraper", { enumerable: true, get: fun
 Object.defineProperty(exports, "DEFAULT_SCRAPING_CONFIG", { enumerable: true, get: function () { return UniversityScraper_1.DEFAULT_SCRAPING_CONFIG; } });
 var UniversityRepository_1 = require("./repository/UniversityRepository");
 Object.defineProperty(exports, "UniversityRepository", { enumerable: true, get: function () { return UniversityRepository_1.UniversityRepository; } });
+//# sourceMappingURL=index.js.map
