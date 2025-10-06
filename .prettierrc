@@ -6,7 +6,7 @@
   "tabWidth": 2,
   "arrowParens": "avoid",
   "bracketSpacing": true,
-  "jsxBracketSameLine": false,
+  "bracketSameLine": false,
   "jsxSingleQuote": true,
   "endOfLine": "auto",
   "proseWrap": "preserve",
