@@ -48,13 +48,13 @@ export interface University {
 export declare enum UniversityType {
     PUBLIC = "public",
     PRIVATE = "private",
-    PRIVATE_NON_PROFIT = "private-non-profit",
-    PRIVATE_FOR_PROFIT = "private-for-profit",
+    PRIVATE_NON_PROFIT = "private_non_profit",
+    PRIVATE_FOR_PROFIT = "private_for_profit",
     RELIGIOUS = "religious",
     MILITARY = "military",
     TECHNICAL = "technical",
-    COMMUNITY_COLLEGE = "community-college",
-    LIBERAL_ARTS = "liberal-arts",
+    COMMUNITY_COLLEGE = "community_college",
+    LIBERAL_ARTS = "liberal_arts",
     RESEARCH = "research",
     TEACHING = "teaching",
     ONLINE = "online",
@@ -64,11 +64,11 @@ export declare enum UniversityType {
  * University size classification
  */
 export declare enum UniversitySize {
-    VERY_SMALL = "very-small",// < 1,000 students
-    SMALL = "small",// 1,000 - 5,000 students
-    MEDIUM = "medium",// 5,000 - 15,000 students
-    LARGE = "large",// 15,000 - 30,000 students
-    VERY_LARGE = "very-large"
+    VERY_SMALL = "very_small",// < 1,000 students
+    SMALL = "small",// 1,000 - 5,000
+    MEDIUM = "medium",// 5,000 - 15,000
+    LARGE = "large",// 15,000 - 30,000
+    VERY_LARGE = "very_large"
 }
 /**
  * Academic degree levels offered
@@ -155,10 +155,10 @@ export interface UniversitySearchOptions {
     accreditation?: string[];
     limit?: number;
     offset?: number;
-    sortBy?: SortOption;
+    sortBy?: UniversitySortField;
     sortOrder?: 'asc' | 'desc';
 }
-export declare enum SortOption {
+export declare enum UniversitySortField {
     NAME = "name",
     COUNTRY = "country",
     FOUNDED_YEAR = "foundedYear",

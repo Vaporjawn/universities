@@ -62,18 +62,31 @@ export interface University {
  * University type classification
  */
 export enum UniversityType {
+  // eslint-disable-next-line no-unused-vars
   PUBLIC = 'public',
+  // eslint-disable-next-line no-unused-vars
   PRIVATE = 'private',
-  PRIVATE_NON_PROFIT = 'private-non-profit',
-  PRIVATE_FOR_PROFIT = 'private-for-profit',
+  // eslint-disable-next-line no-unused-vars
+  PRIVATE_NON_PROFIT = 'private_non_profit',
+  // eslint-disable-next-line no-unused-vars
+  PRIVATE_FOR_PROFIT = 'private_for_profit',
+  // eslint-disable-next-line no-unused-vars
   RELIGIOUS = 'religious',
+  // eslint-disable-next-line no-unused-vars
   MILITARY = 'military',
+  // eslint-disable-next-line no-unused-vars
   TECHNICAL = 'technical',
-  COMMUNITY_COLLEGE = 'community-college',
-  LIBERAL_ARTS = 'liberal-arts',
+  // eslint-disable-next-line no-unused-vars
+  COMMUNITY_COLLEGE = 'community_college',
+  // eslint-disable-next-line no-unused-vars
+  LIBERAL_ARTS = 'liberal_arts',
+  // eslint-disable-next-line no-unused-vars
   RESEARCH = 'research',
+  // eslint-disable-next-line no-unused-vars
   TEACHING = 'teaching',
+  // eslint-disable-next-line no-unused-vars
   ONLINE = 'online',
+  // eslint-disable-next-line no-unused-vars
   SPECIALIZED = 'specialized',
 }
 
@@ -81,23 +94,35 @@ export enum UniversityType {
  * University size classification
  */
 export enum UniversitySize {
-  VERY_SMALL = 'very-small', // < 1,000 students
-  SMALL = 'small', // 1,000 - 5,000 students
-  MEDIUM = 'medium', // 5,000 - 15,000 students
-  LARGE = 'large', // 15,000 - 30,000 students
-  VERY_LARGE = 'very-large', // > 30,000 students
+  // eslint-disable-next-line no-unused-vars
+  VERY_SMALL = 'very_small', // < 1,000 students
+  // eslint-disable-next-line no-unused-vars
+  SMALL = 'small', // 1,000 - 5,000
+  // eslint-disable-next-line no-unused-vars
+  MEDIUM = 'medium', // 5,000 - 15,000
+  // eslint-disable-next-line no-unused-vars
+  LARGE = 'large', // 15,000 - 30,000
+  // eslint-disable-next-line no-unused-vars
+  VERY_LARGE = 'very_large', // > 30,000
 }
 
 /**
  * Academic degree levels offered
  */
 export enum DegreeLevel {
+  // eslint-disable-next-line no-unused-vars
   CERTIFICATE = 'certificate',
+  // eslint-disable-next-line no-unused-vars
   ASSOCIATE = 'associate',
+  // eslint-disable-next-line no-unused-vars
   BACHELOR = 'bachelor',
+  // eslint-disable-next-line no-unused-vars
   MASTER = 'master',
+  // eslint-disable-next-line no-unused-vars
   DOCTORAL = 'doctoral',
+  // eslint-disable-next-line no-unused-vars
   PROFESSIONAL = 'professional',
+  // eslint-disable-next-line no-unused-vars
   POSTDOCTORAL = 'postdoctoral',
 }
 
@@ -179,15 +204,20 @@ export interface UniversitySearchOptions {
   accreditation?: string[];
   limit?: number;
   offset?: number;
-  sortBy?: SortOption;
+  sortBy?: UniversitySortField;
   sortOrder?: 'asc' | 'desc';
 }
 
-export enum SortOption {
+export enum UniversitySortField {
+  // eslint-disable-next-line no-unused-vars
   NAME = 'name',
+  // eslint-disable-next-line no-unused-vars
   COUNTRY = 'country',
+  // eslint-disable-next-line no-unused-vars
   FOUNDED_YEAR = 'foundedYear',
+  // eslint-disable-next-line no-unused-vars
   STUDENT_COUNT = 'studentCount',
+  // eslint-disable-next-line no-unused-vars
   DATA_QUALITY = 'dataQuality',
 }
 

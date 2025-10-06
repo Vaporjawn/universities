@@ -58,16 +58,16 @@ class UniversityRepository {
         if (options.sortBy) {
             const order = options.sortOrder === 'desc' ? -1 : 1;
             switch (options.sortBy) {
-                case University_1.SortOption.NAME:
+                case University_1.UniversitySortField.NAME:
                     results.sort((a, b) => a.name.localeCompare(b.name) * order);
                     break;
-                case University_1.SortOption.COUNTRY:
+                case University_1.UniversitySortField.COUNTRY:
                     results.sort((a, b) => (a.country || '').localeCompare(b.country || '') * order);
                     break;
-                case University_1.SortOption.FOUNDED_YEAR:
+                case University_1.UniversitySortField.FOUNDED_YEAR:
                     results.sort((a, b) => ((a.foundedYear || 0) - (b.foundedYear || 0)) * order);
                     break;
-                case University_1.SortOption.STUDENT_COUNT:
+                case University_1.UniversitySortField.STUDENT_COUNT:
                     results.sort((a, b) => ((a.studentCount || 0) - (b.studentCount || 0)) * order);
                     break;
             }
