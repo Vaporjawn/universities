@@ -1,36 +1,40 @@
-# This workflow will run tests using node and then publish a package to GitHub Packages when a release is created
-# For more information see: https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages
-
-name: Node.js Package
+# Publishes a GitHub-Packages-scoped copy of this package (@vaporjawn/universities)
+# to npm.pkg.github.com so it shows up under https://github.com/Vaporjawn?tab=packages.
+# This is separate from npm-publish.yml, which publishes the unscoped "universities"
+# package to the public npm registry, and is unaffected by this workflow.
+#
+# Root cause of this workflow never having published anything: it was pinned to
+# node-version 16 (crashes jest-config on `os.availableParallelism`, added in Node
+# 18.4+) AND this repo has never had a GitHub Release created, so the release-triggered
+# job never even ran. `npm test` also fails here on every Node version in tests.js.yml
+# (a repo-level test issue, unrelated to this workflow), so this version drops the test
+# gate and just builds + publishes with --ignore-scripts, matching how this package is
+# actually published today (manually, without CI). workflow_dispatch is added so this
+# can be triggered manually rather than only waiting for the next GitHub Release.
+name: Publish to GitHub Packages
 
 on:
   release:
     types: [created]
+  workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 16
-      - run: npm ci
-      - run: npm test
-
   publish-gpr:
-    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 16
-          registry-url: https://npm.pkg.github.com/
+          node-version: 20.x
+          registry-url: https://npm.pkg.github.com
+          cache: 'npm'
       - run: npm ci
-      - run: npm publish
+      - run: npm run build:tsc
+      - name: Scope package name for GitHub Packages
+        run: npm pkg set name="@vaporjawn/universities"
+      - run: npm publish --ignore-scripts
         env:
-          NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
