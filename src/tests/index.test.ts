@@ -132,3 +132,9 @@ describe('Universities Library', () => {
     });
   });
 });
+
+describe('loadBaseUniversities errors', () => {
+  it('rejects instead of hanging when the CSV file does not exist', async () => {
+    await expect(loadBaseUniversities(path.join(process.cwd(), 'does-not-exist.csv'))).rejects.toThrow('ENOENT');
+  });
+});

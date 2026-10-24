@@ -1,0 +1,13 @@
+{
+  "description": "Groups of rows that share the same country, name and URL on purpose. Each is a set of distinct institutions that the source registry (NCES IPEDS 2024) lists separately under one name and one website, for example St. John's College in Annapolis and in Santa Fe. Keys are lower-case 'COUNTRY|name|url'. scripts/validateData.ts and the tests treat anything not listed here as a duplicate-row error.",
+  "reviewed": [
+    "US|cambridge college of healthcare & technology|http://www.cambridgehealth.edu/",
+    "US|city college-hollywood|https://www.citycollege.edu/",
+    "US|pacific college of health and science|http://www.pacificcollege.edu/",
+    "US|southern careers institute-san antonio|http://scitexas.edu/",
+    "US|southern technical college|http://www.southerntech.edu/",
+    "US|spartan college of aeronautics and technology|http://www.spartan.edu/",
+    "US|st. john's college|http://www.sjc.edu/",
+    "US|western technical college|http://www.westerntech.edu/"
+  ]
+}

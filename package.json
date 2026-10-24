@@ -42,6 +42,7 @@
     "clean": "rimraf dist coverage docs/jsdoc",
     "generate:data": "ts-node ./scripts/generateBaseData.ts",
     "enrich": "ts-node ./scripts/enrich.ts",
+    "sync:us": "ts-node ./scripts/syncUsFromIpeds.ts",
     "check": "npm install && npm run build && npm run format && npm run lint && npm run test:coverage",
     "prepare": "npm run build:tsc",
     "prepublishOnly": "npm run build:publish"

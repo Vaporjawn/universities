@@ -12,7 +12,10 @@ export async function loadBaseUniversities(csvPath: string): Promise<BaseUnivers
   return new Promise((resolve, reject) => {
     const results: BaseUniversityRecord[] = [];
 
-    fs.createReadStream(csvPath)
+    // A read-stream error (missing file, permissions) is not forwarded by pipe(), so listen on the source too.
+    const input = fs.createReadStream(csvPath);
+    input.on('error', reject);
+    input
       .pipe(csv({ headers: ['countryCode', 'name', 'url'], skipLines: 0 }))
       .on('data', data => {
         if (data.countryCode && data.name && data.url) {
