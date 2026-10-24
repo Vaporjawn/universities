@@ -7,6 +7,30 @@ import {
   UniversitySize,
 } from '../types/University';
 
+/** Average of the four 0-1 data quality scores; records without scores sort as 0. */
+function dataQualityScore(u: University): number {
+  const q = u.dataQuality;
+  if (!q) return 0;
+  return (q.completeness + q.accuracy + q.freshness + q.reliability) / 4;
+}
+
+/** The first record with the smallest ('min') or largest ('max') value of a numeric field, or undefined. */
+function extremeBy(list: University[], field: 'studentCount' | 'foundedYear', which: 'min' | 'max') {
+  let best: University | undefined;
+  for (const u of list) {
+    if (best === undefined) best = u;
+    else if (
+      which === 'min' ? (u[field] as number) < (best[field] as number) : (u[field] as number) > (best[field] as number)
+    )
+      best = u;
+  }
+  return best;
+}
+
+function asArray<T>(value: T | T[]): T[] {
+  return Array.isArray(value) ? value : [value];
+}
+
 export class UniversityRepository {
   private universities: University[] = [];
 
@@ -22,6 +46,13 @@ export class UniversityRepository {
     return this.universities;
   }
 
+  /**
+   * Filter, sort and paginate the universities.
+   *
+   * Numeric options are compared against `undefined`, not truthiness, so `0` is a real value:
+   * `limit: 0` returns no results and `minStudentCount: 0` still applies the filter (which then
+   * excludes records that have no `studentCount`).
+   */
   search(options: UniversitySearchOptions = {}): University[] {
     let results = [...this.universities];
 
@@ -40,17 +71,34 @@ export class UniversityRepository {
       results = results.filter(u => u.countryCode?.toUpperCase() === code);
     }
 
+    if (options.city) {
+      const city = options.city.toLowerCase();
+      results = results.filter(u => u.city?.toLowerCase() === city);
+    }
+
+    if (options.state) {
+      const state = options.state.toLowerCase();
+      results = results.filter(u => u.state?.toLowerCase() === state);
+    }
+
     if (options.type) {
-      const types = Array.isArray(options.type) ? options.type : [options.type];
+      const types = asArray(options.type);
       results = results.filter(u => u.type && types.includes(u.type));
     }
 
-    if (options.foundedAfter) {
-      results = results.filter(u => u.foundedYear && u.foundedYear > (options.foundedAfter as number));
+    if (options.size) {
+      const sizes = asArray(options.size);
+      results = results.filter(u => u.size && sizes.includes(u.size));
     }
 
-    if (options.foundedBefore) {
-      results = results.filter(u => u.foundedYear && u.foundedYear < (options.foundedBefore as number));
+    if (options.foundedAfter !== undefined) {
+      const after = options.foundedAfter;
+      results = results.filter(u => u.foundedYear !== undefined && u.foundedYear > after);
+    }
+
+    if (options.foundedBefore !== undefined) {
+      const before = options.foundedBefore;
+      results = results.filter(u => u.foundedYear !== undefined && u.foundedYear < before);
     }
 
     if (options.hasProgram) {
@@ -59,7 +107,7 @@ export class UniversityRepository {
     }
 
     if (options.degreeLevel) {
-      const degrees = Array.isArray(options.degreeLevel) ? options.degreeLevel : [options.degreeLevel];
+      const degrees = asArray(options.degreeLevel);
       results = results.filter(u => u.degrees?.some(d => degrees.includes(d)));
     }
 
@@ -67,12 +115,18 @@ export class UniversityRepository {
       results = results.filter(u => options.languages?.every(l => u.languages?.includes(l)));
     }
 
-    if (options.minStudentCount) {
-      results = results.filter(u => u.studentCount && u.studentCount >= (options.minStudentCount as number));
+    if (options.accreditation) {
+      results = results.filter(u => options.accreditation?.every(a => u.accreditation?.includes(a)));
     }
 
-    if (options.maxStudentCount) {
-      results = results.filter(u => u.studentCount && u.studentCount <= (options.maxStudentCount as number));
+    if (options.minStudentCount !== undefined) {
+      const min = options.minStudentCount;
+      results = results.filter(u => u.studentCount !== undefined && u.studentCount >= min);
+    }
+
+    if (options.maxStudentCount !== undefined) {
+      const max = options.maxStudentCount;
+      results = results.filter(u => u.studentCount !== undefined && u.studentCount <= max);
     }
 
     // Sorting
@@ -91,15 +145,26 @@ export class UniversityRepository {
         case UniversitySortField.STUDENT_COUNT:
           results.sort((a, b) => ((a.studentCount || 0) - (b.studentCount || 0)) * order);
           break;
+        case UniversitySortField.DATA_QUALITY:
+          results.sort((a, b) => (dataQualityScore(a) - dataQualityScore(b)) * order);
+          break;
       }
     }
 
     // Pagination
-    const offset = options.offset || 0;
-    const limit = options.limit || results.length;
+    const offset = options.offset ?? 0;
+    const limit = options.limit ?? results.length;
     return results.slice(offset, offset + limit);
   }
 
+  /**
+   * Aggregate counts for the whole repository.
+   *
+   * `averageStudentCount`, `largestUniversity` and `smallestUniversity` only consider records that
+   * have a `studentCount`; `oldestUniversity` and `newestUniversity` only consider records with a
+   * `foundedYear`. `averageStudentCount` is `0` when no record has a student count, and the
+   * university fields are `undefined` when no record has the data they need.
+   */
   stats(): UniversityStats {
     const countByCountry: Record<string, number> = {};
 
@@ -116,22 +181,26 @@ export class UniversityRepository {
       {} as Record<UniversitySize, number>
     );
 
-    // We could populate types/sizes if data exists
     for (const u of this.universities) {
       if (u.type && countByType[u.type] !== undefined) countByType[u.type] += 1;
       if (u.size && countBySize[u.size] !== undefined) countBySize[u.size] += 1;
     }
+
+    const withStudents = this.universities.filter(u => typeof u.studentCount === 'number');
+    const withFounded = this.universities.filter(u => typeof u.foundedYear === 'number');
 
     return {
       totalCount: this.universities.length,
       countByCountry,
       countByType,
       countBySize,
-      averageStudentCount: 0,
-      oldestUniversity: undefined,
-      newestUniversity: undefined,
-      largestUniversity: undefined,
-      smallestUniversity: undefined,
+      averageStudentCount: withStudents.length
+        ? withStudents.reduce((sum, u) => sum + (u.studentCount as number), 0) / withStudents.length
+        : 0,
+      oldestUniversity: extremeBy(withFounded, 'foundedYear', 'min'),
+      newestUniversity: extremeBy(withFounded, 'foundedYear', 'max'),
+      largestUniversity: extremeBy(withStudents, 'studentCount', 'max'),
+      smallestUniversity: extremeBy(withStudents, 'studentCount', 'min'),
     };
   }
 }
