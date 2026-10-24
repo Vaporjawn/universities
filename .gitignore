@@ -28,3 +28,6 @@ yarn-error.log*
 # Optional eslint cache
 .eslintcache
 **/node_modules
+
+# compiled output must never live beside sources
+src/**/*.js

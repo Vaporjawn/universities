@@ -1,6 +1,8 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
+  // ts before js so a stray compiled .js can never shadow its .ts source under test
+  moduleFileExtensions: ['ts', 'js', 'json', 'node'],
   roots: ['<rootDir>/src'],
   testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
   transform: {
