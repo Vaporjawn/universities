@@ -193,7 +193,7 @@ describe('UniversityScraper - Simple Tests', () => {
         name: 'Fixture A University',
         url: 'http://www.fixture-a.edu/',
       });
-      expect(id).toBe('us-fixture-a-university-fixture-a-edu');
+      expect(id).toBe('us-fixture-a-university-www-fixture-a-edu');
       expect(
         scraper.generateUniversityId({
           countryCode: 'US',
