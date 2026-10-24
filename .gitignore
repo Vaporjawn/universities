@@ -35,3 +35,6 @@ src/**/*.js
 # build output and packed tarballs
 /dist
 *.tgz
+
+# output of `npm run enrich` (scraped cache and enriched dataset)
+/data/

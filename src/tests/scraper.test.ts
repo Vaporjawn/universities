@@ -1,4 +1,4 @@
-import { UniversityScraper } from '../scraper/UniversityScraper';
+import { DEFAULT_SCRAPING_CONFIG, UniversityScraper } from '../scraper/UniversityScraper';
 import { UniversityType } from '../types/University';
 
 // Mock axios completely
@@ -179,6 +179,32 @@ describe('UniversityScraper - Simple Tests', () => {
 
       scraper.clear();
       expect(mockQueue.clear).toHaveBeenCalled();
+    });
+  });
+  describe('public helpers used by scripts/enrich.ts', () => {
+    it('exposes the configured concurrency', () => {
+      expect(scraper.concurrency).toBe(5);
+      expect(new UniversityScraper({ ...DEFAULT_SCRAPING_CONFIG, concurrency: 2 }).concurrency).toBe(2);
+    });
+
+    it('generates a stable id from country code, name and domain', () => {
+      const id = scraper.generateUniversityId({
+        countryCode: 'US',
+        name: 'Fixture A University',
+        url: 'http://www.fixture-a.edu/',
+      });
+      expect(id).toBe('us-fixture-a-university-fixture-a-edu');
+      expect(
+        scraper.generateUniversityId({
+          countryCode: 'US',
+          name: 'Fixture A University',
+          url: 'http://www.fixture-a.edu/',
+        })
+      ).toBe(id);
+    });
+
+    it('falls back to "unknown" parts when fields are missing', () => {
+      expect(scraper.generateUniversityId({})).toBe('unknown-unknown-unknown');
     });
   });
 });

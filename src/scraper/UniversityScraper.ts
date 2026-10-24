@@ -43,6 +43,11 @@ export class UniversityScraper {
     });
   }
 
+  /** Maximum number of requests the scraper runs at once. */
+  get concurrency(): number {
+    return this.config.concurrency;
+  }
+
   /**
    * Extract university information from a website
    */
@@ -512,7 +517,7 @@ export class UniversityScraper {
   /**
    * Generate unique university ID
    */
-  private generateUniversityId(university: Partial<University>): string {
+  generateUniversityId(university: Partial<University>): string {
     const name = university.name || 'unknown';
     const country = university.countryCode || university.country || 'unknown';
     const domain = university.url ? this.extractDomain(university.url) : 'unknown';

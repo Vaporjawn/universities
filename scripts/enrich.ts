@@ -5,14 +5,10 @@
  */
 import fs from 'fs-extra';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { loadBaseUniversities } from '../src/data/loadBase';
 import { UniversityScraper, DEFAULT_SCRAPING_CONFIG } from '../src/scraper/UniversityScraper';
 import { University } from '../src/types/University';
 import PQueue from 'p-queue';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const CACHE_DIR = path.resolve(__dirname, '..', 'data', 'cache');
 const OUTPUT_FILE = path.resolve(__dirname, '..', 'data', 'enriched-universities.json');
@@ -22,6 +18,7 @@ interface EnrichOptions {
   start?: number;
   concurrency?: number;
   resume?: boolean; // skip already cached
+  csv?: string; // path to the base CSV, defaults to ../world-universities.csv
 }
 
 async function ensureDirs() {
@@ -59,16 +56,22 @@ async function main() {
     if (arg.startsWith('--start=')) opts.start = parseInt(arg.split('=')[1], 10);
     if (arg.startsWith('--concurrency=')) opts.concurrency = parseInt(arg.split('=')[1], 10);
     if (arg === '--resume') opts.resume = true;
+    if (arg.startsWith('--csv=')) opts.csv = arg.slice('--csv='.length);
   }
 
   await ensureDirs();
 
   console.log('Loading base universities...');
   const base = await loadBaseUniversities(
-    path.resolve(__dirname, '..', 'world-universities.csv').replace('/scripts', '')
+    opts.csv ? path.resolve(opts.csv) : path.resolve(__dirname, '..', 'world-universities.csv')
   );
 
-  const slice = base.slice(opts.start || 0, opts.limit ? (opts.start || 0) + opts.limit : undefined);
+  const start = opts.start || 0;
+  const slice = base.slice(start, opts.limit !== undefined ? start + opts.limit : undefined);
+  if (slice.length === 0) {
+    console.log('Nothing to process (empty selection).');
+    return;
+  }
   console.log(`Total to process: ${slice.length}`);
 
   const scraper = new UniversityScraper({
@@ -76,14 +79,14 @@ async function main() {
     concurrency: opts.concurrency || DEFAULT_SCRAPING_CONFIG.concurrency,
   });
 
-  const queue = new PQueue({ concurrency: scraper['config'].concurrency });
+  const queue = new PQueue({ concurrency: scraper.concurrency });
   const enriched: University[] = [];
   let processed = 0;
   let skipped = 0;
 
   for (const b of slice) {
     queue.add(async () => {
-      const existing = opts.resume ? await loadCached(scraper['generateUniversityId'](b)) : undefined;
+      const existing = opts.resume ? await loadCached(scraper.generateUniversityId(b)) : undefined;
       if (existing) {
         enriched.push(existing);
         skipped++;
