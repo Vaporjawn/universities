@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.1.0] - 2026-10-24
+
+### Data
+
+- **US block rebuilt from NCES IPEDS 2024**: 3,968 active, degree-granting institutions in the 50 states and DC (was 2,074 rows from an old snapshot, with community colleges largely missing and many pre-rename names and dead URLs). US territories and other countries are unchanged. The 1,167 old US rows whose name is not in IPEDS are listed in `scripts/data/us-rows-dropped-ipeds-2024.csv`. Anyone matching on old US names or URLs should expect differences.
+- Trimmed whitespace in 94 rows and removed 5 exact duplicate rows.
+- `countryNameFromCode` now knows AN, GU, ME, NU, SB, SM, SS and VA, which the CSV used but the loader could only answer with the raw code.
+
+### Added
+
+- `npm run sync:us` (`scripts/syncUsFromIpeds.ts`) rebuilds the US block from an IPEDS directory file; `--check` reports whether the CSV is current.
+- `npm run validate:data` (`scripts/validateData.ts`) validates the CSV. The same rules run in the test suite. Intentional duplicates are listed in `scripts/data/reviewed-duplicates.json`.
+- `universities list --name` (the README documented it; only `--search` existed). `--search` still works.
+- `UniversitySearchOptions` fields that were declared but ignored now work: `city`, `state`, `size`, `accreditation`, and `UniversitySortField.DATA_QUALITY`.
+- `scripts/enrich.ts` accepts `--csv=PATH`.
+- Tests grew from 21 to 215. Statement coverage went from 30% to 97.5% and branch coverage from 12% to 91.9%, with thresholds raised to match.
+
+### Changed
+
+- `search({ limit: 0 })` returns no results (it returned everything). Numeric filters now treat `0` as a value, and `foundedAfter` or `minStudentCount` of `0` still apply.
+- `UniversityRepository.stats()` computes `averageStudentCount` and the oldest, newest, largest and smallest universities from records that have the data (it returned placeholders).
+- The CLI reports the version from `package.json` (it said 0.1.0 regardless) and gives every university a unique id.
+- The published package no longer contains compiled tests. `ts-node` moved to `devDependencies`, and `exports` lists `types` first.
+- `dist/`, `*.tgz` and `src/**/*.js` are no longer tracked in git.
+- Removed all GitHub Actions workflows and their README badges. Releases are made manually.
+
+### Fixed
+
+- `npm run enrich` could not start (`import.meta` under CommonJS). `--limit=0` now means zero rows.
+- Jest imported stale compiled `.js` copies of three source files, so the TypeScript was not being tested.
+- `loadBaseUniversities` never settled when the CSV file was missing.
+- `loadUniversitiesFromCSV` dropped records whose values contained line breaks, stripped double quotes from values, ignored the `type` column, crashed on an empty file, and reported "Unknown error" for file-system errors.
+- The scraper never found a phone number on a `tel:` link that had text, and dropped social media links on pages without a phone or email.
+
+### Known issues
+
+- `ScrapingConfig.respectRobots` is accepted but the scraper does not read `robots.txt` yet (listed on the roadmap).
+
 ## [0.0.2] - 2025-01-19
 
 ### Added

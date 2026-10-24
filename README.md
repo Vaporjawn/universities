@@ -16,7 +16,7 @@ Universities
 
 Core goals:
 
-1. Provide immediate, zero‑network access to a clean base list of universities (name, domains, country info, web site) sourced from the public world universities dataset.
+1. Provide immediate, zero‑network access to a clean base list of universities (name, domains, country info, web site) sourced from the public world universities dataset, with the United States rebuilt from the federal NCES IPEDS registry (see [Data Sources & Coverage](#data-sources--coverage)).
 2. Offer an enrichment layer (opt‑in) that scrapes each university homepage respectfully (rate‑limited + retries) to infer or collect:
    - Descriptions / taglines / motto
    - Contact and location hints
@@ -30,7 +30,16 @@ Core goals:
 4. Provide a CLI for quick querying, enrichment, and aggregated stats generation.
 5. Remain transparent, reproducible, and respectful of target sites (configurable concurrency, caching, resumability, optional full‑dataset execution).
 
-> NOTE: Full automatic enrichment of every university (≈9k+) can take considerable time and should be run thoughtfully to avoid undue load on remote servers. The base dataset works instantly without enrichment.
+> NOTE: Full automatic enrichment of every university (≈11k) can take considerable time and should be run thoughtfully to avoid undue load on remote servers. The base dataset works instantly without enrichment.
+
+## Data Sources & Coverage
+
+`world-universities.csv` holds 11,252 institutions in 204 country and territory codes (`countryCode,name,url`, no header).
+
+- **United States: 3,968 institutions, from NCES IPEDS 2024.** The US block lists every institution that IPEDS reports as currently active and degree-granting in the 50 states and DC, with the name and website the institution reports. It leaves out non-degree schools (for example cosmetology and truck-driving schools), closed institutions, US territories (which keep their own codes, such as `PR` and `GU`), and one institution with no website (Northwestern College, IL).
+- **Everything else** comes from the public world universities dataset and has not been audited against a national registry.
+- **Refreshing the US block:** download the latest `HDYYYY.zip` from [NCES IPEDS](https://nces.ed.gov/ipeds/datacenter/DataFiles.aspx), unzip it, and run `npm run sync:us -- --ipeds=/path/to/HDYYYY.csv` (add `--write` to apply, `--check` to test whether the file is current).
+- **Checking the data:** `npm run validate:data` fails on malformed rows, unknown country codes, stray whitespace, invalid URLs and unreviewed duplicate rows. It also runs inside `npm test`.
 
 ## Key Features
 
@@ -149,8 +158,9 @@ Layered design:
 3. Domain Types (`types/University.ts`) – strongly typed schema + enums + search contracts.
 4. Repository (`UniversityRepository`) – in‑memory indexing, filtering, sorting, basic statistics.
 5. Scraper (`UniversityScraper`) – fetch + parse homepage, extraction heuristics, classification & data quality scoring (rate limited via queue).
-6. Enrichment Script (`scripts/enrich.ts`) – orchestrates batch scraping with caching to `data/cache/*.json` and writes aggregated enriched dataset.
+6. Enrichment Script (`scripts/enrich.ts`) – orchestrates batch scraping with caching to `data/cache/*.json` and writes aggregated enriched dataset (`--csv=PATH`, `--limit=N`, `--start=N`, `--concurrency=N`, `--resume`).
 7. CLI (`cli.ts`) – user interface for listing, enrichment, and stats.
+8. Data tooling (`src/ipeds`, `src/data/validation`, `scripts/syncUsFromIpeds.ts`, `scripts/validateData.ts`) – rebuilds the US block from IPEDS and validates the CSV.
 
 ### Scraper Heuristics (High-Level)
 
@@ -194,11 +204,11 @@ Outputs:
 
 ## CLI Reference
 
-| Command        | Purpose                                                    | Key Options                                                  |
-| -------------- | ---------------------------------------------------------- | ------------------------------------------------------------ |
-| `list`         | Filter & display base (or partially enriched) universities | `--name`, `--country`, `--country-code`, `--limit`, `--json` |
-| `enrich <url>` | Enrich a single university homepage                        | (none yet; uses internal defaults)                           |
-| `stats`        | Show aggregated statistics                                 | None                                                         |
+| Command        | Purpose                                                    | Key Options                                                                     |
+| -------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `list`         | Filter & display base (or partially enriched) universities | `--name` (alias `--search`), `--country`, `--country-code`, `--limit`, `--json` |
+| `enrich <url>` | Enrich a single university homepage                        | (none yet; uses internal defaults)                                              |
+| `stats`        | Show aggregated statistics                                 | None                                                                            |
 
 Examples:
 
@@ -217,7 +227,6 @@ universities stats
 - [ ] Advanced classification (continent/region inference, size estimation heuristics, ranking ingestion)
 - [ ] Pluggable enrichment modules (e.g., ranking APIs, accreditation feeds)
 - [ ] Incremental persistent store (SQLite / LiteFS / DuckDB) for historical deltas
-- [ ] Comprehensive test suite (scraper mocks, repository edge cases, CLI integration)
 - [ ] Documentation site (API reference, enrichment metrics dashboard)
 - [ ] Progressive enrichment resume with queuing telemetry
 - [ ] Data provenance & reproducibility manifest (hashes, run metadata)
@@ -230,7 +239,7 @@ Run unit and integration tests:
 npm test
 ```
 
-Coverage reports are emitted to `coverage/`.
+Coverage reports are emitted to `coverage/`. The Jest configuration fails the run when coverage drops below the thresholds in `jest.config.js` (about 95% statements and lines, 89% branches).
 
 ## Contributing
 
@@ -304,12 +313,6 @@ npm install
 
 ```bash
 npm start
-```
-
-or
-
-```bash
-npm run dev
 ```
 
 ### Testing

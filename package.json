@@ -1,6 +1,6 @@
 {
   "name": "universities",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "description": "Comprehensive worldwide universities dataset with TypeScript API, CLI tools, and data processing utilities. Includes web scraping capabilities with respectful rate limiting for enriching university data.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
