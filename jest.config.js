@@ -18,16 +18,18 @@ module.exports = {
     'src/**/*.ts',
     '!src/**/*.d.ts',
     '!src/tests/**',
-    '!src/cli.ts', // CLI is tested separately
+    '!src/cli.ts', // exercised end to end by src/tests/cli.test.ts in a child process, which Jest cannot instrument
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   coverageThreshold: {
     global: {
-      branches: 11,
-      functions: 29,
-      lines: 30,
-      statements: 29,
+      // Measured 2026-10: statements 97.5, branches 91.9, functions 98.7, lines 98.0. Keep these a
+      // couple of points below the measurement so a real drop fails, and raise them when coverage rises.
+      branches: 89,
+      functions: 96,
+      lines: 95,
+      statements: 95,
     },
   },
   setupFilesAfterEnv: ['<rootDir>/src/tests/setup.ts'],

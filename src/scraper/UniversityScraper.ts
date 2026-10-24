@@ -147,9 +147,10 @@ export class UniversityScraper {
     data.programs = this.extractPrograms($);
     data.faculties = this.extractFaculties($);
 
-    // Extract social media links
-    if (data.contact) {
-      data.contact.socialMedia = this.extractSocialMedia($);
+    // Extract social media links (kept even when the page has no phone or email)
+    const socialMedia = this.extractSocialMedia($);
+    if (socialMedia) {
+      data.contact = { ...data.contact, socialMedia };
     }
 
     // Extract motto
@@ -209,12 +210,14 @@ export class UniversityScraper {
     const phonePatterns = [/\+?[\d\s\-()]{10,}/g, /tel:[+\d\-()s]+/gi];
 
     $('a[href^="tel:"], .phone, .contact-phone').each((_, el) => {
-      const text = $(el).text() || $(el).attr('href') || '';
-      for (const pattern of phonePatterns) {
-        const matches = text.match(pattern);
-        if (matches && matches[0].replace(/\D/g, '').length >= 10) {
-          contact.phone = matches[0].trim();
-          return false; // Break out of each loop
+      // A tel: link is often labelled "Call us", so look at the href as well as the visible text.
+      for (const text of [$(el).text(), $(el).attr('href') || '']) {
+        for (const pattern of phonePatterns) {
+          const matches = text.match(pattern);
+          if (matches && matches[0].replace(/\D/g, '').length >= 10) {
+            contact.phone = matches[0].trim();
+            return false; // Break out of each loop
+          }
         }
       }
     });
