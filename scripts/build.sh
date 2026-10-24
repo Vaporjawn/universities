@@ -38,7 +38,7 @@ npm run docs:generate
 
 # Package for distribution
 echo "📦 Packaging for distribution..."
-npm pack
+npm pack --pack-destination "$(mktemp -d)"
 
 echo "✅ Build completed successfully!"
 echo "📊 Coverage report available in coverage/"

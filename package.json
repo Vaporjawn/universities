@@ -9,9 +9,9 @@
   },
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "require": "./dist/index.js",
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "import": "./dist/index.js"
     }
   },
   "bin": {
@@ -28,7 +28,7 @@
     "start": "ts-node ./src/index.ts",
     "build": "./scripts/build.sh",
     "build:publish": "npm run build:tsc && npm run lint && npm run format:check && npm run test",
-    "build:tsc": "rimraf dist && tsc",
+    "build:tsc": "rimraf dist && tsc -p tsconfig.build.json",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -92,6 +92,7 @@
     "prettier": "^3.1.1",
     "rimraf": "^5.0.5",
     "ts-jest": "^29.1.1",
+    "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   },
   "dependencies": {
@@ -101,7 +102,6 @@
     "csv-parser": "^3.2.0",
     "fs-extra": "^11.3.2",
     "p-limit": "^7.1.1",
-    "p-queue": "^8.1.1",
-    "ts-node": "^10.9.2"
+    "p-queue": "^8.1.1"
   }
 }

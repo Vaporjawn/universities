@@ -31,3 +31,7 @@ yarn-error.log*
 
 # compiled output must never live beside sources
 src/**/*.js
+
+# build output and packed tarballs
+/dist
+*.tgz
