@@ -4,12 +4,6 @@ Universities
 </h1>
 <p><strong>Worldwide universities dataset & enrichment toolkit</strong> – instant access to a global list of institutions plus an optional, rate‑limited scraper that augments each with descriptive, academic, and classification metadata via a TypeScript API & CLI.</p>
 
-[![Installation](https://github.com/Vaporjawn/universities/actions/workflows/install.js.yml/badge.svg)](https://github.com/Vaporjawn/universities/actions/workflows/install.js.yml)
-[![Build](https://github.com/Vaporjawn/universities/actions/workflows/build.js.yml/badge.svg)](https://github.com/Vaporjawn/universities/actions/workflows/build.js.yml)
-[![Linting](https://github.com/Vaporjawn/universities/actions/workflows/lint.js.yml/badge.svg)](https://github.com/Vaporjawn/universities/actions/workflows/lint.js.yml)
-[![Tests](https://github.com/Vaporjawn/universities/actions/workflows/tests.js.yml/badge.svg)](https://github.com/Vaporjawn/universities/actions/workflows/tests.js.yml)
-[![Security Scan](https://github.com/Vaporjawn/universities/actions/workflows/securityScan.yml/badge.svg)](https://github.com/Vaporjawn/universities/actions/workflows/securityScan.yml)
-
 [![GitHub repo forks](https://img.shields.io/github/forks/Vaporjawn/universities?style=flat&logo=github&logoColor=whitesmoke&label=Forks)](https://github.com/Vaporjawn/universities/network)&#160;[![GitHub repo stars](https://img.shields.io/github/stars/Vaporjawn/universities?style=flat&logo=github&logoColor=whitesmoke&label=Stars)](https://github.com/Vaporjawn/universities/stargazers)&#160;[![GitHub repo contributors](https://img.shields.io/github/contributors-anon/Vaporjawn/universities?style=flat&logo=github&logoColor=whitesmoke&label=Contributors)](https://github.com/Vaporjawn/universities/graphs/contributors)[![GitHub org sponsors](https://img.shields.io/github/sponsors/Vaporjawn?style=flat&logo=github&logoColor=whitesmoke&label=Sponsors)](https://github.com/sponsors/Vaporjawn)&#160;[![GitHub repo watchers](https://img.shields.io/github/watchers/Vaporjawn/universities?style=flat&logo=github&logoColor=whitesmoke&label=Watchers)](https://github.com/Vaporjawn/universities/watchers)&#160;[![GitHub repo size](https://img.shields.io/github/repo-size/Vaporjawn/universities?style=flat&logo=github&logoColor=whitesmoke&label=Repo%20Size)](https://github.com/Vaporjawn/universities/archive/refs/heads/main.zip)
 
 [![GitHub package.json dependency version (dev dep on branch)](https://img.shields.io/github/package-json/dependency-version/Vaporjawn/universities/dev/typescript/main?style=flat&logo=typescript&logoColor=whitesmoke&label=TypeScript)](https://www.typescriptlang.org/)&#160;![GitHub package.json dependency version (dev dep on branch)](https://img.shields.io/github/package-json/dependency-version/Vaporjawn/universities/dev/prettier/main?style=flat&logo=prettier&logoColor=whitesmoke&label=Prettier)&#160;![GitHub package.json dependency version (dev dep on branch)](https://img.shields.io/github/package-json/dependency-version/Vaporjawn/universities/dev/eslint/main?style=flat&logo=eslint&logoColor=whitesmoke&label=ESLint)&#160;![GitHub package.json dependency version (dev dep on branch)](https://img.shields.io/github/package-json/dependency-version/Vaporjawn/universities/dev/jest/main?style=flat&logo=jest&logoColor=whitesmoke&label=Jest)&#160;
@@ -302,8 +296,6 @@ Click on these badges to see how you might be able to help:
 
 ### Installation
 
-[![Installation](https://github.com/Vaporjawn/universities/actions/workflows/install.js.yml/badge.svg)](https://github.com/Vaporjawn/universities/actions/workflows/install.js.yml)
-
 ```bash
 npm install
 ```
@@ -322,15 +314,11 @@ npm run dev
 
 ### Testing
 
-[![Tests](https://github.com/Vaporjawn/universities/actions/workflows/tests.js.yml/badge.svg)](https://github.com/Vaporjawn/universities/actions/workflows/tests.js.yml)
-
 ```bash
 npm test
 ```
 
 ### Building
-
-[![Build](https://github.com/Vaporjawn/universities/actions/workflows/build.js.yml/badge.svg)](https://github.com/Vaporjawn/universities/actions/workflows/build.js.yml)
 
 ```bash
 npm run build
