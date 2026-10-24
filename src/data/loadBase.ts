@@ -48,6 +48,7 @@ const countryMap: Record<string, string> = {
   AI: 'Anguilla',
   AL: 'Albania',
   AM: 'Armenia',
+  AN: 'Netherlands Antilles',
   AO: 'Angola',
   AR: 'Argentina',
   AT: 'Austria',
@@ -119,6 +120,7 @@ const countryMap: Record<string, string> = {
   GQ: 'Equatorial Guinea',
   GR: 'Greece',
   GT: 'Guatemala',
+  GU: 'Guam',
   GW: 'Guinea-Bissau',
   GY: 'Guyana',
   HK: 'Hong Kong',
@@ -162,6 +164,7 @@ const countryMap: Record<string, string> = {
   MA: 'Morocco',
   MC: 'Monaco',
   MD: 'Moldova',
+  ME: 'Montenegro',
   MG: 'Madagascar',
   MK: 'North Macedonia',
   ML: 'Mali',
@@ -186,6 +189,7 @@ const countryMap: Record<string, string> = {
   NL: 'Netherlands',
   NO: 'Norway',
   NP: 'Nepal',
+  NU: 'Niue',
   NZ: 'New Zealand',
   OM: 'Oman',
   PA: 'Panama',
@@ -207,6 +211,7 @@ const countryMap: Record<string, string> = {
   RU: 'Russia',
   RW: 'Rwanda',
   SA: 'Saudi Arabia',
+  SB: 'Solomon Islands',
   SC: 'Seychelles',
   SD: 'Sudan',
   SE: 'Sweden',
@@ -214,9 +219,11 @@ const countryMap: Record<string, string> = {
   SI: 'Slovenia',
   SK: 'Slovakia',
   SL: 'Sierra Leone',
+  SM: 'San Marino',
   SN: 'Senegal',
   SO: 'Somalia',
   SR: 'Suriname',
+  SS: 'South Sudan',
   ST: 'Sao Tome and Principe',
   SV: 'El Salvador',
   SY: 'Syria',
@@ -239,6 +246,7 @@ const countryMap: Record<string, string> = {
   US: 'United States',
   UY: 'Uruguay',
   UZ: 'Uzbekistan',
+  VA: 'Holy See (Vatican City State)',
   VC: 'Saint Vincent and the Grenadines',
   VE: 'Venezuela',
   VG: 'British Virgin Islands',
@@ -255,4 +263,9 @@ const countryMap: Record<string, string> = {
 
 export function countryNameFromCode(code: string): string {
   return countryMap[code.toUpperCase()] || code;
+}
+
+/** True when `code` (upper-case ISO 3166-1 alpha-2) has an entry in the country name map. */
+export function isKnownCountryCode(code: string): boolean {
+  return Object.prototype.hasOwnProperty.call(countryMap, code);
 }

@@ -17,6 +17,7 @@ First off, thank you for considering contributing to Universities! It's people l
   - [TypeScript Styleguide](#typescript-styleguide)
   - [Documentation Styleguide](#documentation-styleguide)
 - [Ethical Considerations](#ethical-considerations)
+- [Data Changes](#data-changes)
 
 ## Code of Conduct
 
@@ -187,6 +188,15 @@ This project includes web scraping functionality. When contributing to scraping-
 - Implement delays between requests
 - Provide clear documentation on responsible usage
 - Add warnings for bulk operations
+
+## Data Changes
+
+`world-universities.csv` has no header and three columns: `countryCode,name,url`.
+
+- **US rows come from NCES IPEDS, not from hand edits.** The US block lists every currently active, degree-granting institution in the 50 states and DC. To refresh it, download the latest `HDYYYY.zip` ("Institutional Characteristics: Directory information") from <https://nces.ed.gov/ipeds/datacenter/DataFiles.aspx>, unzip it, then run `npm run sync:us -- --ipeds=/path/to/HDYYYY.csv` for a report, add `--write` to apply, or `--check` to see whether the file is current. Add `--removed-report=scripts/data/us-rows-dropped-YYYY.csv` to keep the old rows that were dropped. US territories (PR, GU, VI, ...) and other countries are not touched.
+- **Other countries come from the public world-universities dataset**, so manual edits will differ from upstream. Keep edits small, and mention the source of each correction in the commit message.
+- **Run `npm run validate:data` before committing a data change.** It fails on a wrong field count, an unknown country code, surrounding whitespace, a URL that is not a clean `http(s)` address, or a duplicate row. Rows that share a name and a website on purpose (distinct institutions that a registry lists separately) belong in `scripts/data/reviewed-duplicates.json` as lower-case `COUNTRY|name|url` keys. The same check runs as part of `npm test`.
+- Do not rewrite `http://` to `https://` in bulk; most hosts have not been checked for HTTPS.
 
 ## Testing
 
