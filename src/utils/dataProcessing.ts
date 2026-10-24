@@ -1,5 +1,5 @@
 import * as fs from 'fs/promises';
-import { University } from '../types/University';
+import { University, UniversityType } from '../types/University';
 
 /**
  * Load universities from a CSV file
@@ -9,8 +9,9 @@ import { University } from '../types/University';
 export async function loadUniversitiesFromCSV(filePath: string): Promise<University[]> {
   try {
     const csvContent = await fs.readFile(filePath, 'utf-8');
-    const lines = csvContent.split('\n').filter(line => line.trim());
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    const lines = splitCSVRecords(csvContent);
+    if (lines.length === 0) return [];
+    const headers = parseCSVLine(lines[0]);
 
     const universities: University[] = [];
 
@@ -26,9 +27,7 @@ export async function loadUniversitiesFromCSV(filePath: string): Promise<Univers
 
     return universities;
   } catch (error) {
-    throw new Error(
-      `Failed to load universities from CSV: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
+    throw new Error(`Failed to load universities from CSV: ${errorMessage(error)}`);
   }
 }
 
@@ -82,12 +81,15 @@ export async function saveUniversitiesToCSV(universities: University[], filePath
 
     await fs.writeFile(filePath, csvLines.join('\n'), 'utf-8');
   } catch (error) {
-    throw new Error(`Failed to save universities to CSV: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    throw new Error(`Failed to save universities to CSV: ${errorMessage(error)}`);
   }
 }
 
 /**
- * Filter universities based on criteria
+ * Filter universities based on criteria.
+ *
+ * Range filters (`foundedYearRange`, `studentCountRange`) only judge records that have the value;
+ * a record with no `foundedYear` or `studentCount` is not excluded by them.
  * @param universities - Array of universities to filter
  * @param criteria - Filter criteria
  * @returns Filtered array of universities
@@ -219,6 +221,40 @@ export function validateUniversityData(data: Partial<University>): University {
 }
 
 /**
+ * Message of a thrown value. Checks the shape instead of `instanceof Error`, which is false for
+ * errors created in another realm (Node core errors seen from a Jest test, for example).
+ */
+function errorMessage(error: unknown): string {
+  if (typeof error === 'object' && error !== null && 'message' in error)
+    return String((error as { message: unknown }).message);
+  return 'Unknown error';
+}
+
+/**
+ * Split CSV text into records. A line break inside a double-quoted field belongs to that field, so
+ * it does not end the record. Handles \n and \r\n, and skips blank records.
+ */
+function splitCSVRecords(text: string): string[] {
+  const records: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    if (char === '"') inQuotes = !inQuotes; // an escaped "" toggles twice and nets out
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && text[i + 1] === '\n') i++;
+      if (current.trim()) records.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  if (current.trim()) records.push(current);
+  return records;
+}
+
+/**
  * Parse a CSV line handling quoted values and commas
  */
 function parseCSVLine(line: string): string[] {
@@ -259,7 +295,7 @@ function parseUniversityFromCSV(headers: string[], values: string[]): University
 
     for (let i = 0; i < headers.length; i++) {
       const header = headers[i].toLowerCase();
-      const value = values[i]?.replace(/"/g, '').trim();
+      const value = values[i]?.trim();
 
       if (!value) continue;
 
@@ -298,7 +334,8 @@ function parseUniversityFromCSV(headers: string[], values: string[]): University
           if (!isNaN(year)) data.foundedYear = year;
           break;
         case 'type':
-          // Skip type assignment for now, will be handled in validation
+          // Unknown values are ignored rather than rejecting the whole record.
+          if ((Object.values(UniversityType) as string[]).includes(value)) data.type = value as UniversityType;
           break;
         case 'studentcount':
         case 'student_count':
