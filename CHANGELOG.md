@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.0] - 2026-11-24
+
+0.1.0 was prepared in the repository but never published to npm, so 0.2.0 is the first npm release since 0.0.3 and includes everything listed under 0.1.0 below.
 
 ### Added
 
@@ -23,9 +25,11 @@
 ### Security
 
 - Upgraded every dependency; `npm audit` reports 0 vulnerabilities (it reported 19, 16 of them high, all in `undici` via `cheerio`, plus `glob` and `minimatch` through Jest). `overrides` pins `glob@^14.0.6` and `minimatch@^11.0.9` because Jest 30 still depends on the vulnerable ranges.
+- Response sizes are capped (robots.txt 1 MiB, pages 5 MiB), and ids and cache paths can no longer carry path characters from the CSV.
 
 ### Changed
 
+- README rewritten: quick start with real CLI output, feature tables, and collapsible reference sections.
 - Major upgrades: ESLint 10 (flat config in `eslint.config.js`, replacing `.eslintrc.js` and `.eslintignore`), `typescript-eslint` 8, Jest 30, `commander` 15, `p-queue` 10, `nock` 15, `rimraf` 6. `@types/nock` was removed because nock ships its own types.
 - TypeScript is 6.0.3, not 7: `typescript-eslint` and `ts-jest` do not support 7 yet. `tsconfig.json` now sets `rootDir`, `lib` (`ES2022`, `DOM`) and `types` because TypeScript 6 no longer infers them.
 - Node 20.19 or newer is required (was 20.0): the HTTP and queue dependencies are ES-module-only, which CommonJS can load from 20.19. `exports` now lists `import` and `require` conditions with matching types; deep imports such as `universities/dist/...` were never exported and still are not.
