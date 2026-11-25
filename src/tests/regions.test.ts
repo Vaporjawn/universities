@@ -96,3 +96,11 @@ describe('buildBaseUniversities', () => {
     expect(odd).toMatchObject({ domain: '', continent: undefined });
   });
 });
+
+describe('id safety', () => {
+  it('reduces every part of an id to a-z, 0-9 and hyphens, whatever the CSV holds', () => {
+    const [row] = buildBaseUniversities([{ countryCode: '../../etc', name: 'A/B\\C', url: 'https://x.edu/' }]);
+    expect(row.id).toMatch(/^[a-z0-9-]+$/);
+    expect(row.id).not.toContain('..');
+  });
+});

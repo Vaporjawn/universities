@@ -69,7 +69,11 @@ const MAX_FAILURES = 200;
 /** Cache file for an id. Very long ids fall back to a hash so the name stays within file-system limits. */
 const cacheFile = (outDir: string, id: string): string => {
   const name = id.length > 180 ? `${id.slice(0, 120)}-${crypto.createHash('sha1').update(id).digest('hex')}` : id;
-  return path.join(outDir, 'cache', `${name}.json`);
+  const cacheDir = path.resolve(outDir, 'cache');
+  const file = path.resolve(cacheDir, `${name}.json`);
+  // Belt and braces: ids are already reduced to [a-z0-9-], but a cache path must never leave the cache folder.
+  if (path.dirname(file) !== cacheDir) throw new Error(`Refusing cache path outside ${cacheDir}: ${id}`);
+  return file;
 };
 
 /** Read a cached record, or `undefined` when missing or unreadable. */

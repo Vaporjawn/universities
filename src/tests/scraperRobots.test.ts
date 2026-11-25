@@ -155,3 +155,27 @@ describe('student count extraction', () => {
     expect(await countFor(`<p>${text}</p>`)).toBeUndefined();
   });
 });
+
+describe('response size limits', () => {
+  beforeEach(() => mockedGet.mockReset());
+
+  it('caps robots.txt and page bodies', async () => {
+    serve({ status: 404 });
+    await new UniversityScraper({ hostInterval: 0 }).scrapeUniversity(base);
+    const [robotsCall, pageCall] = mockedGet.mock.calls;
+    expect(robotsCall[1]).toMatchObject({ maxContentLength: 1024 * 1024, maxBodyLength: 1024 * 1024 });
+    expect(pageCall[1]).toMatchObject({ maxContentLength: 5 * 1024 * 1024, maxBodyLength: 5 * 1024 * 1024 });
+  });
+
+  it('treats a robots.txt that exceeds the cap as unreadable and skips the site', async () => {
+    mockedGet.mockImplementation(async (url: string) => {
+      if (url.endsWith('/robots.txt')) throw new Error('maxContentLength size of 1048576 exceeded');
+      return { status: 200, data: HOME };
+    });
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const result = await new UniversityScraper({ hostInterval: 0 }).scrapeUniversityDetailed(base);
+    warn.mockRestore();
+    expect(result.status).toBe('blocked-by-robots');
+    expect(result.reason).toContain('maxContentLength');
+  });
+});

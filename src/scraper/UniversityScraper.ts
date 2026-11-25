@@ -38,6 +38,12 @@ export const DEFAULT_SCRAPING_CONFIG: ScrapingConfig = {
   robotsTtl: 60 * 60 * 1000,
 };
 
+/** Largest page body the scraper accepts. A bigger response fails the fetch instead of filling memory. */
+const MAX_PAGE_BYTES = 5 * 1024 * 1024;
+
+/** Largest robots.txt body accepted. A bigger one counts as unreadable, which RFC 9309 treats as disallowed. */
+const MAX_ROBOTS_BYTES = 1024 * 1024;
+
 /** How one scrape ended. */
 export type ScrapeStatus = 'enriched' | 'failed' | 'blocked-by-robots';
 
@@ -75,7 +81,9 @@ export const universityIdFor = (university: Partial<University>): string => {
       [domain] = university.url.replace(/^https?:\/\//, '').split('/');
     }
   }
-  return `${country.toLowerCase()}-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${domain.replace(/[^a-z0-9]/g, '-')}`;
+  // Every part is reduced to [a-z0-9-]: ids name cache files, and a CSV value must never carry path characters.
+  const slug = (text: string): string => text.toLowerCase().replace(/[^a-z0-9]/g, '-');
+  return `${slug(country)}-${slug(name)}-${slug(domain)}`;
 };
 
 /**
@@ -201,6 +209,8 @@ export class UniversityScraper {
       headers: { 'User-Agent': this.config.userAgent, Accept: 'text/plain,*/*;q=0.5' },
       maxRedirects: 5,
       responseType: 'text',
+      maxContentLength: MAX_ROBOTS_BYTES,
+      maxBodyLength: MAX_ROBOTS_BYTES,
       validateStatus: () => true,
     });
     return { status: response.status, body: typeof response.data === 'string' ? response.data : '' };
@@ -223,6 +233,8 @@ export class UniversityScraper {
           Connection: 'keep-alive',
         },
         maxRedirects: 5,
+        maxContentLength: MAX_PAGE_BYTES,
+        maxBodyLength: MAX_PAGE_BYTES,
       });
 
       return response;

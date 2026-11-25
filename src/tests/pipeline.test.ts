@@ -281,6 +281,14 @@ describe('runEnrichment', () => {
     expect((await run({ resume: true, modules: [describing()] })).telemetry.fromCache).toBe(1);
   });
 
+  it('keeps a hostile country code inside the cache folder', async () => {
+    fs.writeFileSync(csv, 'ZZ/../../escape,Evil,https://evil.example/');
+    const result = await run();
+    expect(result.universities[0].id).toMatch(/^[a-z0-9-]+$/);
+    expect(fs.readdirSync(path.join(outDir, 'cache'))).toHaveLength(1);
+    expect(fs.existsSync(path.join(folder, 'escape'))).toBe(false);
+  });
+
   it('keeps going when storing one result fails', async () => {
     const store = {
       startRun: jest.fn(),
