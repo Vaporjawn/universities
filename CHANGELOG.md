@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Security
+
+- Upgraded every dependency; `npm audit` reports 0 vulnerabilities (it reported 19, 16 of them high, all in `undici` via `cheerio`, plus `glob` and `minimatch` through Jest). `overrides` pins `glob@^14.0.6` and `minimatch@^11.0.9` because Jest 30 still depends on the vulnerable ranges.
+
+### Changed
+
+- Major upgrades: ESLint 10 (flat config in `eslint.config.js`, replacing `.eslintrc.js` and `.eslintignore`), `typescript-eslint` 8, Jest 30, `commander` 15, `p-queue` 10, `nock` 15, `rimraf` 6. `@types/nock` was removed because nock ships its own types.
+- TypeScript is 6.0.3, not 7: `typescript-eslint` and `ts-jest` do not support 7 yet. `tsconfig.json` now sets `rootDir`, `lib` (`ES2022`, `DOM`) and `types` because TypeScript 6 no longer infers them.
+- Errors thrown by `loadUniversitiesFromCSV` and `saveUniversitiesToCSV` carry the original error as `cause`.
+
 ## [0.1.0] - 2026-10-24
 
 ### Data

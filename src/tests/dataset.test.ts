@@ -138,9 +138,8 @@ describe('country names', () => {
 describe('world-universities.csv', () => {
   it('passes every validation rule (duplicates must be listed in scripts/data/reviewed-duplicates.json)', async () => {
     const reviewed = new Set<string>(
-      JSON.parse(
-        fs.readFileSync(path.join(process.cwd(), 'scripts', 'data', 'reviewed-duplicates.json'), 'utf8')
-      ).reviewed
+      JSON.parse(fs.readFileSync(path.join(process.cwd(), 'scripts', 'data', 'reviewed-duplicates.json'), 'utf8'))
+        .reviewed
     );
     const report = validateDatasetRows(await readRawCsvRows(path.join(process.cwd(), 'world-universities.csv')), {
       reviewedDuplicates: reviewed,

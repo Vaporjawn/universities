@@ -191,9 +191,8 @@ describe('the US block of world-universities.csv', () => {
 
   it('has no duplicate name and URL pair beyond the reviewed ones', () => {
     const reviewed = new Set<string>(
-      JSON.parse(
-        fs.readFileSync(path.join(process.cwd(), 'scripts', 'data', 'reviewed-duplicates.json'), 'utf8')
-      ).reviewed
+      JSON.parse(fs.readFileSync(path.join(process.cwd(), 'scripts', 'data', 'reviewed-duplicates.json'), 'utf8'))
+        .reviewed
     );
     const counts = new Map<string, number>();
     us.forEach(r => {

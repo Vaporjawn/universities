@@ -27,7 +27,7 @@ export async function loadUniversitiesFromCSV(filePath: string): Promise<Univers
 
     return universities;
   } catch (error) {
-    throw new Error(`Failed to load universities from CSV: ${errorMessage(error)}`);
+    throw new Error(`Failed to load universities from CSV: ${errorMessage(error)}`, { cause: error });
   }
 }
 
@@ -81,7 +81,7 @@ export async function saveUniversitiesToCSV(universities: University[], filePath
 
     await fs.writeFile(filePath, csvLines.join('\n'), 'utf-8');
   } catch (error) {
-    throw new Error(`Failed to save universities to CSV: ${errorMessage(error)}`);
+    throw new Error(`Failed to save universities to CSV: ${errorMessage(error)}`, { cause: error });
   }
 }
 
