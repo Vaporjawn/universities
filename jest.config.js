@@ -24,12 +24,12 @@ module.exports = {
   coverageReporters: ['text', 'lcov', 'html'],
   coverageThreshold: {
     global: {
-      // Measured 2026-10: statements 97.5, branches 91.9, functions 98.7, lines 98.0. Keep these a
+      // Measured 2026-11: statements 98.1, branches 92.9, functions 97.6, lines 98.6. Keep these a
       // couple of points below the measurement so a real drop fails, and raise them when coverage rises.
-      branches: 89,
+      branches: 90,
       functions: 96,
-      lines: 95,
-      statements: 95,
+      lines: 96,
+      statements: 96,
     },
   },
   setupFilesAfterEnv: ['<rootDir>/src/tests/setup.ts'],

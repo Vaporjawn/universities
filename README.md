@@ -46,11 +46,13 @@ Core goals:
 - Base dataset loader (CSV → strongly typed objects)
 - In‑memory repository with searching, filtering, sorting and basic statistics
 - Extensible domain model (`University`, `Program`, `Faculty`, ranking + classification enums)
-- Heuristic scraper with retry + rate limiting queue
-- Batch enrichment script with per‑university JSON caching (resumable)
-- CLI with subcommands: `list`, `enrich`, `stats`
-- TypeScript declarations for consumption in TS or JS projects
-- Modular architecture to allow swapping scraping strategies or adding alternate data sources later (e.g., APIs, ranking feeds)
+- Heuristic scraper with retries, a rate‑limited queue, per‑host spacing and **robots.txt enforcement**
+- Batch enrichment pipeline: per‑university caching, `--resume`, queue telemetry, a provenance manifest and optional snapshots
+- Pluggable enrichment modules (homepage scrape, continent/sub‑region/size classification, rankings and accreditation feeds, or your own)
+- Optional SQLite history store that records what changed for each university between runs
+- CLI with subcommands: `list`, `enrich`, `enrich-all`, `stats`
+- Dual ESM + CommonJS package with TypeScript declarations
+- Generated documentation site (API reference, guide, dataset and enrichment metrics)
 
 ## Installation
 
@@ -88,10 +90,16 @@ Output JSON instead of a table:
 universities list --country-code CA --json --limit 3
 ```
 
-Enrich a single university (fetch + parse homepage):
+Enrich a single university (fetch + parse homepage; robots.txt is read first):
 
 ```bash
-universities enrich https://www.mit.edu/
+universities enrich https://www.mit.edu/ --name "Massachusetts Institute of Technology" --country-code US
+```
+
+Enrich many universities with caching, telemetry and a provenance manifest (see [Enrichment Workflow](#enrichment-workflow)):
+
+```bash
+universities enrich-all --country-code GB --limit 25 --resume
 ```
 
 View aggregated stats (counts by type, size, etc.— improves once enriched data exists):
@@ -102,48 +110,88 @@ universities stats
 
 ## Programmatic Usage
 
+The package has one entry point and works from both module systems. Deep imports such as `universities/dist/...` are not part of the public API.
+
 ```ts
-import { loadBaseUniversities } from 'universities/dist/data/loadBase';
-import { UniversityRepository } from 'universities/dist/repository/UniversityRepository';
-
-async function example() {
-  const base = await loadBaseUniversities();
-  const repo = new UniversityRepository(base);
-
-  const results = repo.search({ countryCode: 'US', name: 'state', limit: 20 });
-  console.log(results.slice(0, 3));
-  console.log(repo.stats());
-}
-
-example();
+// ESM
+import { loadBaseUniversities, toPartialUniversity, UniversityRepository } from 'universities';
+// CommonJS
+// const { loadBaseUniversities, toPartialUniversity, UniversityRepository } = require('universities');
 ```
 
-> The scraper (`UniversityScraper`) is intentionally decoupled and lazily imported in the CLI to avoid pulling ESM‑only dependencies when unnecessary. For programmatic enrichment you can: `import { UniversityScraper } from 'universities/dist/scraper/UniversityScraper';`
+Search the dataset (the CSV ships in the package):
+
+```ts
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { loadBaseUniversities, toPartialUniversity, UniversityRepository, inferGeography } from 'universities';
+import type { University } from 'universities';
+
+const packageRoot = path.dirname(createRequire(import.meta.url).resolve('universities/package.json'));
+const rows = await loadBaseUniversities(path.join(packageRoot, 'world-universities.csv'));
+const repo = new UniversityRepository(
+  rows.map(
+    (row, i): University =>
+      ({
+        ...toPartialUniversity(row),
+        id: `row-${i}`,
+        lastUpdated: new Date(),
+        dataQuality: { completeness: 0.1, accuracy: 0.5, freshness: 1, reliability: 0.4 },
+        sources: [row.url],
+      }) as University
+  )
+);
+console.log(repo.search({ countryCode: 'US', name: 'state', limit: 3 }));
+console.log(inferGeography('GB')); // { continent: 'Europe', subregion: 'Northern Europe' }
+```
+
+Enrich programmatically:
+
+```ts
+import { UniversityScraper, runEnrichment, createHtmlScrapeModule, createClassificationModule } from 'universities';
+
+const scraper = new UniversityScraper({ interval: 2000 }); // robots.txt is honoured unless respectRobots is false
+const result = await runEnrichment({
+  csv: 'world-universities.csv',
+  outDir: 'data',
+  countryCode: ['GB'],
+  limit: 10,
+  modules: [createHtmlScrapeModule(scraper), createClassificationModule()],
+  resume: true,
+});
+console.log(result.telemetry.enriched, result.manifestFile);
+```
 
 ## Data Model (Simplified)
 
 ```ts
 interface University {
-  id: string; // Stable hash/id generation
+  id: string; // `<country>-<name>-<domain>`, lower-case; the CSV row number is appended when two rows collide
   name: string;
   country: string;
   countryCode: string;
-  alphaTwoCode?: string; // If present in source
-  webPages: string[]; // One or more homepage URLs
-  domains: string[]; // Domain(s)
-  stateProvince?: string;
+  url: string;
+  domain?: string;
+  continent?: Continent; // inferred from the country code
+  subregion?: string; // UN geoscheme sub-region, e.g. "Western Europe"
+  city?: string;
+  state?: string;
+  address?: string;
   // Enriched fields (optional until scraping):
   description?: string;
   motto?: string;
-  foundingYear?: number;
-  location?: string;
-  contact?: { email?: string; phone?: string; address?: string };
-  programs?: { name: string; degreeLevels?: string[] }[];
-  faculties?: { name: string; description?: string }[];
-  social?: { twitter?: string; facebook?: string; instagram?: string; linkedin?: string; youtube?: string };
-  classification?: { type?: string; degreeLevel?: string[] };
-  dataQuality?: { score: number; factors: string[] };
-  enrichedAt?: string; // ISO timestamp when enrichment occurred
+  foundedYear?: number;
+  type?: UniversityType;
+  size?: UniversitySize; // estimated from studentCount
+  studentCount?: number;
+  contact?: { email?: string; phone?: string; socialMedia?: SocialMediaLinks };
+  programs?: { name: string; degreeLevel?: DegreeLevel }[];
+  faculties?: { name: string }[];
+  rankings?: { source: string; rank: number; year: number; category?: string; url?: string }[];
+  accreditation?: string[];
+  lastUpdated: Date;
+  dataQuality: { completeness: number; accuracy: number; freshness: number; reliability: number };
+  sources: string[]; // pages and feed files the data came from
 }
 ```
 
@@ -157,17 +205,17 @@ Layered design:
 2. Loader (`loadBaseUniversities`) – parses CSV into partial `University` objects.
 3. Domain Types (`types/University.ts`) – strongly typed schema + enums + search contracts.
 4. Repository (`UniversityRepository`) – in‑memory indexing, filtering, sorting, basic statistics.
-5. Scraper (`UniversityScraper`) – fetch + parse homepage, extraction heuristics, classification & data quality scoring (rate limited via queue).
-6. Enrichment Script (`scripts/enrich.ts`) – orchestrates batch scraping with caching to `data/cache/*.json` and writes aggregated enriched dataset (`--csv=PATH`, `--limit=N`, `--start=N`, `--concurrency=N`, `--resume`).
+5. Scraper (`UniversityScraper`) – fetch + parse homepage, extraction heuristics, data quality scoring. Rate limited by a queue, spaced per host, and gated by `robots.txt` (`scraper/robots.ts`).
+6. Enrichment pipeline (`src/enrichment/`) – `runEnrichment` selects rows, runs the modules, caches, and writes the dataset, `telemetry.json` and `manifest.json`; `scripts/enrich.ts` and `universities enrich-all` are thin wrappers around it.
 7. CLI (`cli.ts`) – user interface for listing, enrichment, and stats.
 8. Data tooling (`src/ipeds`, `src/data/validation`, `scripts/syncUsFromIpeds.ts`, `scripts/validateData.ts`) – rebuilds the US block from IPEDS and validates the CSV.
 
 ### Scraper Heuristics (High-Level)
 
-- Fetch with retry & jitter backoff.
+- Fetch with retry and a growing delay between attempts.
 - Extract `<meta name="description">`, first meaningful paragraph, or tagline patterns.
 - Look for contact info via regex (emails, phone numbers, address fragments).
-- Infer founding year via patterns like `Established 18xx|19xx|20xx`.
+- Infer founding year via patterns like `Established 18xx|19xx|20xx`, and enrolment from phrases like "45,000 students".
 - Identify program/faculty keywords in navigation or section headers.
 - Collect social links by domain match (twitter.com, facebook.com, etc.).
 - Classify type (public/private/research/technical/community) by keyword/phrase heuristics.
@@ -175,61 +223,139 @@ Layered design:
 
 ### Performance & Respectful Crawling
 
-- Concurrency controlled by a queue (configurable).
-- Optional pauses / resume; per‑record caching prevents redundant fetches.
-- Future roadmap includes robots.txt parsing & adaptive politeness windows.
+- Concurrency controlled by a queue (configurable), plus at least `hostInterval` (default 1 s) between requests to the same host.
+- `robots.txt` is read once per site (cached for an hour) before any page is fetched. See [robots.txt and politeness](#robotstxt-and-politeness).
+- Per‑record caching prevents redundant fetches; `--resume` continues an interrupted run.
 
 ## Enrichment Workflow
 
-The batch enrichment script is optional and can be executed when you purposely want deeper metadata.
+Enrichment is optional and visits real websites, so run it deliberately. From a checkout use `npm run enrich -- <options>`; from an installed package use `universities enrich-all <options>`. Both run the same code and accept `--flag=value` and `--flag value`.
 
 ```bash
-npm run build
-node dist/scripts/enrich.js --concurrency 3 --resume
+npm run enrich -- --country-code GB --limit 25 --concurrency 3 --resume
+universities enrich-all --country-code GB --limit 25 --concurrency 3 --resume
 ```
 
-Flags (planned / implemented):
+| Option                 | Description                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------ |
+| `--csv PATH`           | Base CSV (default: the bundled `world-universities.csv`).                                  |
+| `--out-dir DIR`        | Output folder (default `./data`; for `npm run enrich`, the repository's `data/`).          |
+| `--limit N`            | Process only N universities after `--start` and `--country-code` are applied (`0` = none). |
+| `--start N`            | Skip the first N universities.                                                             |
+| `--country-code CC,..` | Only these ISO country codes, e.g. `GB` or `GB,IE`.                                        |
+| `--concurrency N`      | Universities processed at once (default 5).                                                |
+| `--interval MS`        | Minimum gap between any two page requests (default 1000).                                  |
+| `--timeout MS`         | Request timeout (default 10000).                                                           |
+| `--retries N`          | Attempts per page (default 3).                                                             |
+| `--user-agent TEXT`    | `User-Agent` header; also selects the robots.txt group.                                    |
+| `--max-crawl-delay MS` | Skip sites whose robots.txt `Crawl-delay` is larger (default 30000).                       |
+| `--ignore-robots`      | Do not read robots.txt. Only for sites you own or have permission to scrape.               |
+| `--resume`             | Reuse results already in `<out-dir>/cache`. Failed and robots‑blocked ones are retried.    |
+| `--feed FILE`          | Rankings or accreditation feed (`.csv`/`.json`); repeatable.                               |
+| `--store FILE`         | Also keep results and per‑field history in SQLite (Node 22.13+).                           |
+| `--snapshot`           | Copy the outputs to `<out-dir>/snapshots/<runId>/` with `SHA256SUMS`.                      |
+| `--publish-dir DIR`    | Copy the snapshot to `DIR` and update `DIR/latest.json` (implies `--snapshot`).            |
 
-| Flag                  | Description                                                               |
-| --------------------- | ------------------------------------------------------------------------- |
-| `--concurrency <n>`   | Number of parallel fetches (default modest to prevent overloading sites). |
-| `--resume`            | Skip already cached universities (looks in `data/cache/`).                |
-| `--limit <n>`         | (Planned) Process only the first N universities for sampling.             |
-| `--country-code <CC>` | (Planned) Restrict enrichment to a country subset.                        |
+Ctrl‑C finishes the universities in progress, writes a partial dataset and exits with code 130; run again with `--resume` to continue.
 
-Outputs:
+Outputs in `<out-dir>`:
 
-- `data/cache/{universityId}.json` – per‑university enriched snapshot.
-- `data/enriched-universities.json` – aggregated enriched dataset (written after run).
+- `cache/{universityId}.json` – one complete result per university (used by `--resume`).
+- `enriched-universities.json` – the aggregated dataset, in CSV order.
+- `telemetry.json` – rewritten every two seconds while running: totals, cache hits, failures, robots blocks per host, queue depth, rate, ETA and per‑module counts.
+- `manifest.json` – provenance for the run (see below).
+- `snapshots/<runId>/` – with `--snapshot`: the three files above plus `SHA256SUMS` (check with `shasum -a 256 -c SHA256SUMS`), and `snapshots/latest.json`.
+
+### robots.txt and politeness
+
+`respectRobots` is on by default and implemented to RFC 9309:
+
+- `https://<site>/robots.txt` is fetched once per origin and cached for an hour (`robotsTtl`).
+- The group naming the scraper's `User-Agent` product token (`WorldUniversitiesBot` by default) applies; otherwise the `*` group. `Allow`/`Disallow` use longest‑match with `*` and `$`.
+- A 4xx response (including 404) means no restrictions. A 5xx response or a network error means the whole site is treated as disallowed until the cache entry expires.
+- A disallowed page is not fetched. The record keeps its base fields, gets the low data‑quality score, and is counted as `blockedByRobots` in the telemetry. `universities enrich <url>` exits with code 3 in that case.
+- `Crawl-delay` is honoured as the minimum gap between requests to that host. A delay above `maxCrawlDelay` (default 30 s) makes the scraper skip the site instead.
+- Only the first page of a visit is checked. Redirects to another host are followed without a second robots.txt check.
+
+Configure it through `ScrapingConfig` (`respectRobots`, `hostInterval`, `maxCrawlDelay`, `robotsTtl`, `interval`, `userAgent`) or the options above.
+
+### Enrichment modules
+
+A run executes a list of modules in order; each sees the record built by the ones before it. The CLI uses `html-scrape`, then `classification`, then one module per `--feed`.
+
+| Module           | What it adds                                                                                                     |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `html-scrape`    | Description, contact, location, founding year, type, programs, faculties, social links, enrolment, motto.        |
+| `classification` | `continent` and `subregion` from the country code; `size` from `studentCount`. Never overwrites existing values. |
+| `feed:<file>`    | `rankings` and `accreditation` from a CSV or JSON feed, matched by domain first, then by country code and name.  |
+
+Write your own by implementing `EnrichmentModule` and passing it to `runEnrichment`:
+
+```ts
+import { runEnrichment, EnrichmentModule } from 'universities';
+
+const accreditationApi: EnrichmentModule = {
+  name: 'my-accreditation-api',
+  version: '1',
+  async enrich(university) {
+    const found = await lookup(university.domain); // your code
+    return found ? { data: { accreditation: found } } : { status: 'skipped', reason: 'not listed' };
+  },
+};
+```
+
+A module that throws is recorded as failed for that university and the run continues. Rankings and accreditation arrive through feeds (files) rather than live APIs, so the pipeline stays offline‑reproducible.
+
+Feed CSV columns: `source`, `rank`, `year` for a ranking (plus optional `category`, `rankingUrl`) and/or `accreditation` (separate values with `;`), and `domain` or both `countryCode` and `name` to say which university the row is about. A JSON feed is an array of `{ domain?, countryCode?, name?, rankings?, accreditation? }`.
+
+### History store (SQLite)
+
+`--store history.db` (or `new SqliteStore(path)`) keeps the latest record of each university and a history of what changed on every run (`store.history(id)` returns the changed fields with old and new values; unchanged records add nothing). It uses Node's built‑in `node:sqlite`, so it needs Node 22.13 or newer and installs no native module; on older Node it fails with a clear message and the rest of the tool works without it. DuckDB is not supported.
+
+### Provenance manifest and snapshots
+
+`manifest.json` records everything needed to reproduce or audit a run: the run id, tool and Node versions, the git commit and whether the tree was dirty (when the CSV is in a git checkout), the SHA‑256 of the input CSV and of the output, the filters used, every module with its version and configuration (user agent, intervals, `respectRobots`), and the outcome counts. `--publish-dir` copies a finished snapshot to any folder you can publish from (a static‑hosting branch, a mounted bucket, or the files you attach to a GitHub release); partial runs are never snapshotted.
 
 ## CLI Reference
 
-| Command        | Purpose                                                    | Key Options                                                                     |
-| -------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `list`         | Filter & display base (or partially enriched) universities | `--name` (alias `--search`), `--country`, `--country-code`, `--limit`, `--json` |
-| `enrich <url>` | Enrich a single university homepage                        | (none yet; uses internal defaults)                                              |
-| `stats`        | Show aggregated statistics                                 | None                                                                            |
+| Command        | Purpose                                                    | Key Options                                                                                                                    |
+| -------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `list`         | Filter & display base (or partially enriched) universities | `--name` (alias `--search`), `--country`, `--country-code`, `--limit`, `--json`                                                |
+| `enrich <url>` | Enrich a single university homepage and print JSON         | `--name`, `--country-code`, `--country`, `--timeout`, `--interval`, `--retries`, `--user-agent`, `--ignore-robots`, `-o/--out` |
+| `enrich-all`   | Batch enrichment with caching, telemetry and a manifest    | see [Enrichment Workflow](#enrichment-workflow); `universities enrich-all --help` lists them                                   |
+| `stats`        | Show aggregated statistics                                 | None                                                                                                                           |
+
+Exit codes of `enrich <url>`: 0 enriched, 1 the page could not be fetched, 3 skipped because robots.txt disallows it. `enrich-all` exits 0 on success, 2 for bad options and 130 when interrupted.
 
 Examples:
 
 ```bash
 universities list --name technology --limit 8
 universities list --country-code GB --json --limit 5
-universities enrich https://www.stanford.edu/
+universities enrich https://www.stanford.edu/ --country-code US
+universities enrich-all --country-code IE --resume --snapshot
 universities stats
 ```
 
+## Documentation site
+
+```bash
+npm run docs   # writes site/
+```
+
+`site/index.html` (this README), `site/guide.html` (`docs/API.md`), `site/api.html` (every public export with its signature and TSDoc, generated from the sources with the TypeScript compiler) and `site/metrics.html` (dataset counts by continent, sub‑region and country, plus enrichment coverage and the last run when `data/` holds one). The site is static, has no scripts, and is not committed or published to npm; serve `site/` from any static host.
+
+## Package formats
+
+`npm run build:tsc` writes CommonJS to `dist/` (what `main`, `bin` and `require` use) and an ES module bundle to `dist/esm/index.mjs` (`import`). `npm run verify:dist` loads both, checks that they export the same names and exercises them; `npm run build:publish` runs it. Node 20.19 or newer is required: the HTTP and queue dependencies are ES‑module‑only, which CommonJS can load from that version on.
+
 ## Roadmap
 
-- [ ] Full dataset enrichment pipeline automation & snapshot publishing
-- [ ] Dual ESM + CJS distribution build (current workaround: lazy import for ESM‑only deps)
-- [ ] Robots.txt compliance & politeness policy configuration
-- [ ] Advanced classification (continent/region inference, size estimation heuristics, ranking ingestion)
-- [ ] Pluggable enrichment modules (e.g., ranking APIs, accreditation feeds)
-- [ ] Incremental persistent store (SQLite / LiteFS / DuckDB) for historical deltas
-- [ ] Documentation site (API reference, enrichment metrics dashboard)
-- [ ] Progressive enrichment resume with queuing telemetry
-- [ ] Data provenance & reproducibility manifest (hashes, run metadata)
+Open ideas, none started:
+
+- [ ] Live ranking and accreditation API modules (today they arrive through feed files)
+- [ ] DuckDB backend for the history store (SQLite covers history today)
+- [ ] Scheduled enrichment runs and publishing from CI (the CI workflows were removed on purpose)
 
 ## Testing
 
@@ -257,17 +383,19 @@ Please consult (or propose) a `CONTRIBUTING.md` for evolving guidelines. Ethical
 ## Ethical & Legal Considerations
 
 - This project performs only light, homepage‑level scraping by default.
-- Always respect target site terms of service and robots.txt (planned feature for enforcement).
+- robots.txt is enforced by default (see [robots.txt and politeness](#robotstxt-and-politeness)). `--ignore-robots` exists for sites you own or have permission to scrape; terms of service still apply.
 - Do not use the enrichment pipeline to harvest personal data beyond institutional metadata.
 - Consider running enrichment in batches with conservative concurrency settings.
 
 ## Troubleshooting
 
-| Issue                                   | Cause                                                           | Resolution                                                      |
-| --------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------- |
-| `ERR_REQUIRE_ESM` when using CLI `list` | ESM‑only dependency (`p-queue`) pulled into non‑enrichment path | Resolved via lazy import; update to latest version of package   |
-| Empty enrichment fields                 | Site structure variation                                        | Re‑run later or inspect HTML; heuristics will improve over time |
-| Slow enrichment run                     | Network latency / conservative concurrency                      | Increase `--concurrency` cautiously                             |
+| Issue                                | Cause                                                                    | Resolution                                                      |
+| ------------------------------------ | ------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| `ERR_REQUIRE_ESM` on startup         | Node older than 20.19 cannot `require()` the ES‑module‑only dependencies | Upgrade to Node 20.19 or newer                                  |
+| Many `blocked by robots.txt` results | The site disallows crawlers, or its robots.txt returned a 5xx            | Expected; check `telemetry.json` → `robotsBlockedHosts`         |
+| `--store` fails with `node:sqlite`   | Node older than 22.13                                                    | Upgrade Node, or run without `--store`                          |
+| Empty enrichment fields              | Site structure variation                                                 | Re‑run later or inspect HTML; heuristics will improve over time |
+| Slow enrichment run                  | Network latency / conservative concurrency                               | Increase `--concurrency` cautiously                             |
 
 ## Security
 

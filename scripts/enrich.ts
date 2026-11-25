@@ -1,121 +1,23 @@
 #!/usr/bin/env ts-node
 /*
- * Batch enrichment script
- * Loads base universities from CSV, performs respectful concurrent scraping with caching.
+ * Batch enrichment: `npm run enrich -- --limit=5 --country-code=GB --resume`.
+ * A thin wrapper around the same command as `universities enrich-all`; run it with --help for the options.
  */
-import fs from 'fs-extra';
 import path from 'path';
-import { loadBaseUniversities } from '../src/data/loadBase';
-import { UniversityScraper, DEFAULT_SCRAPING_CONFIG } from '../src/scraper/UniversityScraper';
-import { University } from '../src/types/University';
-import PQueue from 'p-queue';
+import { enrichMain } from '../src/enrichment/run';
+import { version } from '../package.json';
 
-const CACHE_DIR = path.resolve(__dirname, '..', 'data', 'cache');
-const OUTPUT_FILE = path.resolve(__dirname, '..', 'data', 'enriched-universities.json');
+const root = path.resolve(__dirname, '..');
 
-interface EnrichOptions {
-  limit?: number;
-  start?: number;
-  concurrency?: number;
-  resume?: boolean; // skip already cached
-  csv?: string; // path to the base CSV, defaults to ../world-universities.csv
-}
-
-async function ensureDirs() {
-  await fs.ensureDir(CACHE_DIR);
-  await fs.ensureDir(path.dirname(OUTPUT_FILE));
-}
-
-function cachePath(id: string) {
-  return path.join(CACHE_DIR, `${id}.json`);
-}
-
-async function loadCached(id: string): Promise<University | undefined> {
-  const p = cachePath(id);
-  if (await fs.pathExists(p)) {
-    try {
-      const data = await fs.readJSON(p);
-      return data as University;
-    } catch {
-      return undefined;
-    }
-  }
-  return undefined;
-}
-
-async function saveCached(u: University) {
-  const p = cachePath(u.id);
-  await fs.writeJSON(p, u, { spaces: 2 });
-}
-
-async function main() {
-  const args = process.argv.slice(2);
-  const opts: EnrichOptions = {};
-  for (const arg of args) {
-    if (arg.startsWith('--limit=')) opts.limit = parseInt(arg.split('=')[1], 10);
-    if (arg.startsWith('--start=')) opts.start = parseInt(arg.split('=')[1], 10);
-    if (arg.startsWith('--concurrency=')) opts.concurrency = parseInt(arg.split('=')[1], 10);
-    if (arg === '--resume') opts.resume = true;
-    if (arg.startsWith('--csv=')) opts.csv = arg.slice('--csv='.length);
-  }
-
-  await ensureDirs();
-
-  console.log('Loading base universities...');
-  const base = await loadBaseUniversities(
-    opts.csv ? path.resolve(opts.csv) : path.resolve(__dirname, '..', 'world-universities.csv')
-  );
-
-  const start = opts.start || 0;
-  const slice = base.slice(start, opts.limit !== undefined ? start + opts.limit : undefined);
-  if (slice.length === 0) {
-    console.log('Nothing to process (empty selection).');
-    return;
-  }
-  console.log(`Total to process: ${slice.length}`);
-
-  const scraper = new UniversityScraper({
-    ...DEFAULT_SCRAPING_CONFIG,
-    concurrency: opts.concurrency || DEFAULT_SCRAPING_CONFIG.concurrency,
+enrichMain(process.argv.slice(2), {
+  defaultCsv: path.join(root, 'world-universities.csv'),
+  defaultOutDir: path.join(root, 'data'),
+  toolVersion: version,
+})
+  .then(code => {
+    process.exitCode = code;
+  })
+  .catch(error => {
+    console.error(error);
+    process.exitCode = 1;
   });
-
-  const queue = new PQueue({ concurrency: scraper.concurrency });
-  const enriched: University[] = [];
-  let processed = 0;
-  let skipped = 0;
-
-  for (const b of slice) {
-    queue.add(async () => {
-      const existing = opts.resume ? await loadCached(scraper.generateUniversityId(b)) : undefined;
-      if (existing) {
-        enriched.push(existing);
-        skipped++;
-        return;
-      }
-      try {
-        const full = await scraper.scrapeUniversity(b);
-        enriched.push(full);
-        await saveCached(full);
-      } catch (e) {
-        console.warn('Enrichment failed for', b.name, e);
-      } finally {
-        processed++;
-        if (processed % 25 === 0) {
-          console.log(`Progress: ${processed}/${slice.length} (skipped ${skipped})`);
-        }
-      }
-    });
-  }
-
-  // Wait for queue
-  await queue.onIdle();
-
-  console.log('Writing enriched output...');
-  await fs.writeJSON(OUTPUT_FILE, enriched, { spaces: 2 });
-  console.log(`Done. Enriched: ${enriched.length}, skipped (cache): ${skipped}`);
-}
-
-main().catch(err => {
-  console.error(err);
-  process.exit(1);
-});

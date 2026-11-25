@@ -277,4 +277,6 @@ export const CSV_HEADERS = [
   'latitude',
   'longitude',
   'description',
+  'continent',
+  'subregion',
 ];

@@ -14,6 +14,10 @@ export interface University {
   city?: string;
   state?: string;
   region?: string;
+  /** Continent inferred from the country code (see `inferGeography`). */
+  continent?: Continent;
+  /** UN geoscheme sub-region inferred from the country code, e.g. "Western Europe". */
+  subregion?: string;
   address?: string;
   coordinates?: {
     latitude: number;
@@ -56,6 +60,24 @@ export interface University {
   lastUpdated: Date;
   dataQuality: DataQuality;
   sources: string[];
+}
+
+/**
+ * Continent names used by `inferGeography`.
+ */
+export enum Continent {
+  // eslint-disable-next-line no-unused-vars
+  AFRICA = 'Africa',
+  // eslint-disable-next-line no-unused-vars
+  ASIA = 'Asia',
+  // eslint-disable-next-line no-unused-vars
+  EUROPE = 'Europe',
+  // eslint-disable-next-line no-unused-vars
+  NORTH_AMERICA = 'North America',
+  // eslint-disable-next-line no-unused-vars
+  SOUTH_AMERICA = 'South America',
+  // eslint-disable-next-line no-unused-vars
+  OCEANIA = 'Oceania',
 }
 
 /**

@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-import { Command } from 'commander';
+import { Command, InvalidArgumentError } from 'commander';
 import path from 'path';
 import fs from 'fs';
 import { loadBaseUniversities, toPartialUniversity } from './data/loadBase';
 import { UniversityRepository } from './repository/UniversityRepository';
 import { University } from './types/University';
+import { ENRICH_HELP } from './enrichment/args';
+import { enrichMain } from './enrichment/run';
 
 const program = new Command();
 
@@ -49,13 +51,71 @@ program
 
 program
   .command('enrich <url>')
-  .description('Enrich a single university URL to show sample data fields')
-  .action(async (url: string) => {
-    // Lazy import to avoid loading ESM-only dependencies during normal list usage
-    const { UniversityScraper } = await import('./scraper/UniversityScraper');
-    const scraper = new UniversityScraper();
-    const uni = await scraper.scrapeUniversity({ url, name: url, countryCode: 'XX', country: 'Unknown' });
-    console.log(JSON.stringify(uni, null, 2));
+  .description('Enrich a single university homepage and print the result as JSON')
+  .option('--name <name>', 'University name to record (default: the URL)')
+  .option('--country-code <code>', 'ISO country code to record (default: XX)')
+  .option('--country <country>', 'Country name to record (default: derived from the code, else Unknown)')
+  .option('--timeout <ms>', 'Request timeout in milliseconds', value => parseIntegerOption(value, '--timeout', 1))
+  .option('--interval <ms>', 'Minimum milliseconds between requests', value =>
+    parseIntegerOption(value, '--interval', 0)
+  )
+  .option('--retries <n>', 'Attempts per page', value => parseIntegerOption(value, '--retries', 1))
+  .option('--user-agent <text>', 'User-Agent header, also used to pick the robots.txt group')
+  .option('--ignore-robots', 'Do not read robots.txt (only for sites you own or have permission to scrape)')
+  .option('-o, --out <file>', 'Write the JSON to a file instead of printing it')
+  .action(async (url: string, opts) => {
+    // Lazy import keeps `list` and `stats` fast: the scraper pulls in the HTTP and HTML parsing dependencies.
+    const { UniversityScraper, DEFAULT_SCRAPING_CONFIG } = await import('./scraper/UniversityScraper');
+    const { createClassificationModule } = await import('./enrichment/modules');
+    const { countryNameFromCode } = await import('./data/loadBase');
+    const { mergeUniversity } = await import('./enrichment/merge');
+
+    const countryCode = String(opts.countryCode ?? 'XX').toUpperCase();
+    const scraper = new UniversityScraper({
+      ...DEFAULT_SCRAPING_CONFIG,
+      ...(opts.timeout !== undefined && { timeout: opts.timeout }),
+      ...(opts.interval !== undefined && { interval: opts.interval }),
+      ...(opts.retries !== undefined && { retries: opts.retries }),
+      ...(opts.userAgent && { userAgent: opts.userAgent }),
+      respectRobots: !opts.ignoreRobots,
+    });
+    const base = {
+      url,
+      name: opts.name ?? url,
+      countryCode,
+      country: opts.country ?? (countryCode === 'XX' ? 'Unknown' : countryNameFromCode(countryCode)),
+    };
+    const result = await scraper.scrapeUniversityDetailed(base);
+    const classified = await createClassificationModule().enrich(result.university);
+    const university = classified.data ? mergeUniversity(result.university, classified.data) : result.university;
+
+    const json = JSON.stringify(university, null, 2);
+    if (opts.out) fs.writeFileSync(opts.out, `${json}\n`);
+    else console.log(json);
+
+    if (result.status === 'blocked-by-robots') {
+      console.error(`Not fetched: ${result.reason}. Use --ignore-robots only if you have permission.`);
+      process.exitCode = 3;
+    } else if (result.status === 'failed') {
+      console.error(`Could not enrich ${url}: ${result.reason}`);
+      process.exitCode = 1;
+    }
+  });
+
+program
+  .command('enrich-all')
+  .description('Enrich many universities from the base CSV with caching, telemetry and a provenance manifest')
+  .argument('[options...]', 'see the options below')
+  .allowUnknownOption()
+  .helpOption(false)
+  .addHelpText('after', `\n${ENRICH_HELP}`)
+  .action(async (rawArgs: string[]) => {
+    const csv = findBaseCsv();
+    process.exitCode = await enrichMain(rawArgs, {
+      defaultCsv: csv,
+      defaultOutDir: path.resolve(process.cwd(), 'data'),
+      toolVersion: readPackageVersion(),
+    });
   });
 
 program
@@ -67,6 +127,21 @@ program
     console.log(JSON.stringify(stats, null, 2));
   });
 
+/** Parse a whole-number option and fail with a readable message otherwise. */
+function parseIntegerOption(value: string, flag: string, min: number): number {
+  const number = Number(value);
+  if (!/^\d+$/.test(value) || !Number.isSafeInteger(number) || number < min) {
+    throw new InvalidArgumentError(`${flag} expects an integer >= ${min}, got "${value}"`);
+  }
+  return number;
+}
+
+/** Path of the bundled base CSV, whether running from `dist/` or from `src/`. */
+function findBaseCsv(): string {
+  const csvPath = path.join(__dirname, '..', 'world-universities.csv');
+  return fs.existsSync(csvPath) ? csvPath : path.join(__dirname, '..', '..', 'world-universities.csv');
+}
+
 /** Returns `id`, or `id-<1-based row number>` when the same id was already used by an earlier row. */
 function uniqueId(id: string, index: number, seenIds: Set<string>): string {
   const unique = seenIds.has(id) ? `${id}-${index + 1}` : id;
@@ -75,12 +150,7 @@ function uniqueId(id: string, index: number, seenIds: Set<string>): string {
 }
 
 async function loadRepository(): Promise<UniversityRepository> {
-  const csvPath = path.join(__dirname, '..', 'world-universities.csv');
-  let resolvedCsv = csvPath;
-  if (!fs.existsSync(resolvedCsv)) {
-    // fallback to root
-    resolvedCsv = path.join(__dirname, '..', '..', 'world-universities.csv');
-  }
+  const resolvedCsv = findBaseCsv();
   const base = await loadBaseUniversities(resolvedCsv);
   const seenIds = new Set<string>();
   const universities: University[] = base.map(

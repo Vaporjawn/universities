@@ -27,7 +27,8 @@ describe('UniversityScraper - Simple Tests', () => {
   let scraper: UniversityScraper;
 
   beforeEach(() => {
-    scraper = new UniversityScraper();
+    // These tests are about page parsing and retries; robots.txt and host spacing have their own tests.
+    scraper = new UniversityScraper({ respectRobots: false, hostInterval: 0 });
     jest.clearAllMocks();
   });
 

@@ -1,5 +1,5 @@
 import * as fs from 'fs/promises';
-import { University, UniversityType } from '../types/University';
+import { Continent, University, UniversityType } from '../types/University';
 
 /**
  * Load universities from a CSV file
@@ -54,6 +54,8 @@ export async function saveUniversitiesToCSV(universities: University[], filePath
       'latitude',
       'longitude',
       'description',
+      'continent',
+      'subregion',
     ];
 
     const csvLines = [headers.join(',')];
@@ -75,6 +77,8 @@ export async function saveUniversitiesToCSV(universities: University[], filePath
         university.coordinates?.latitude?.toString() || '',
         university.coordinates?.longitude?.toString() || '',
         escapeCSVValue(university.description || ''),
+        escapeCSVValue(university.continent || ''),
+        escapeCSVValue(university.subregion || ''),
       ];
       csvLines.push(values.join(','));
     }
@@ -327,6 +331,13 @@ function parseUniversityFromCSV(headers: string[], values: string[]): University
           break;
         case 'region':
           data.region = value;
+          break;
+        case 'continent':
+          // Unknown values are ignored rather than rejecting the whole record.
+          if ((Object.values(Continent) as string[]).includes(value)) data.continent = value as Continent;
+          break;
+        case 'subregion':
+          data.subregion = value;
           break;
         case 'foundedyear':
         case 'founded_year':

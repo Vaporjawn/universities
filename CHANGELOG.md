@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Added
+
+- **robots.txt is enforced.** `respectRobots` (default on) now reads `/robots.txt` once per origin (RFC 9309: group selection by user agent, longest-match `Allow`/`Disallow` with `*` and `$`, 4xx means open, 5xx or a network error means closed) and skips disallowed pages. `Crawl-delay` sets the minimum gap between requests to that host; a delay above `maxCrawlDelay` (30 s) skips the site. New `ScrapingConfig` fields: `hostInterval`, `maxCrawlDelay`, `robotsTtl`. `UniversityScraper` takes a partial config, and `scrapeUniversityDetailed` reports `enriched`, `failed` or `blocked-by-robots`. `universities enrich <url>` exits with 3 when robots.txt disallows the page and 1 when the page cannot be fetched.
+- `npm run generate:data` now exists (`scripts/generateBaseData.ts`): it writes `data/base-universities.json` with the pipeline's ids, country names, domains, continents and sub-regions.
+- **Enrichment pipeline** (`src/enrichment/`, `runEnrichment`): one code path behind `npm run enrich` and the new `universities enrich-all`. Adds `--country-code`, `--interval`, `--timeout`, `--retries`, `--user-agent`, `--max-crawl-delay`, `--ignore-robots`, `--feed`, `--store`, `--snapshot`, `--publish-dir`, `--out-dir` and `--help`; every flag accepts `--flag=value` and `--flag value`, and unknown or invalid flags are rejected with exit code 2. Output order is CSV order. Ctrl-C finishes the universities in progress, writes a partial dataset and exits 130.
+- `universities enrich <url>` options: `--name`, `--country-code`, `--country`, `--timeout`, `--interval`, `--retries`, `--user-agent`, `--ignore-robots`, `--out`.
+- **Queue telemetry**: `telemetry.json` (rewritten every 2 s) with totals, cache hits, failures, robots blocks per host, queue depth, rate, ETA and per-module counts. **Provenance manifest**: `manifest.json` with run id, tool and Node versions, git commit, SHA-256 of input and output, filters, module versions and configuration, and counts. **Snapshots**: `--snapshot` copies the outputs with `SHA256SUMS`; `--publish-dir` copies them to a folder you publish from.
+- **Pluggable modules** (`EnrichmentModule`): built-in `html-scrape`, `classification` and feed modules. Rankings and accreditation load from CSV or JSON feeds (`loadFeed`).
+- **Classification**: `continent` and `subregion` (UN geoscheme) from the country code, `size` from `studentCount`, and enrolment extracted from homepages. New `University.continent` and `University.subregion` fields, and matching CSV columns (appended last, so older files still load).
+- **History store**: `SqliteStore` (`--store`) records per-field changes between runs using Node's built-in `node:sqlite` (Node 22.13+). DuckDB is not supported.
+- **Dual ESM and CommonJS build**: `dist/esm/index.mjs` for `import`, `dist/index.js` for `require`, with `npm run verify:dist` checking both.
+- **Documentation site** (`npm run docs` writes `site/`): README, guide, an API reference generated from the sources with the TypeScript compiler, and a metrics page.
+
+### Fixed
+
+- `docs/API.md` described methods that never existed (`scrapeUniversities`, scraper events, `ScrapingOptions`); it is rewritten against the real API.
+- The README told people to run `node dist/scripts/enrich.js` (never built), listed `--limit` as planned and documented `--limit <n>` where only `--limit=n` worked. The README's data model and programmatic examples were also out of date and are corrected; the examples were run against the built package.
+
 ### Security
 
 - Upgraded every dependency; `npm audit` reports 0 vulnerabilities (it reported 19, 16 of them high, all in `undici` via `cheerio`, plus `glob` and `minimatch` through Jest). `overrides` pins `glob@^14.0.6` and `minimatch@^11.0.9` because Jest 30 still depends on the vulnerable ranges.
@@ -10,6 +28,8 @@
 
 - Major upgrades: ESLint 10 (flat config in `eslint.config.js`, replacing `.eslintrc.js` and `.eslintignore`), `typescript-eslint` 8, Jest 30, `commander` 15, `p-queue` 10, `nock` 15, `rimraf` 6. `@types/nock` was removed because nock ships its own types.
 - TypeScript is 6.0.3, not 7: `typescript-eslint` and `ts-jest` do not support 7 yet. `tsconfig.json` now sets `rootDir`, `lib` (`ES2022`, `DOM`) and `types` because TypeScript 6 no longer infers them.
+- Node 20.19 or newer is required (was 20.0): the HTTP and queue dependencies are ES-module-only, which CommonJS can load from 20.19. `exports` now lists `import` and `require` conditions with matching types; deep imports such as `universities/dist/...` were never exported and still are not.
+- `jsdoc` is removed (it cannot read TypeScript); `npm run docs` builds the site instead.
 - Errors thrown by `loadUniversitiesFromCSV` and `saveUniversitiesToCSV` carry the original error as `cause`.
 
 ## [0.1.0] - 2026-10-24
@@ -48,7 +68,7 @@
 
 ### Known issues
 
-- `ScrapingConfig.respectRobots` is accepted but the scraper does not read `robots.txt` yet (listed on the roadmap).
+- `ScrapingConfig.respectRobots` is accepted but the scraper does not read `robots.txt` yet (listed on the roadmap). Fixed in the next release.
 
 ## [0.0.2] - 2025-01-19
 

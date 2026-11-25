@@ -1,20 +1,20 @@
-# Universities API Documentation
+# Universities API Guide
 
-## Overview
-
-The Universities package provides TypeScript/JavaScript utilities for scraping and processing university data from various sources. It includes robust error handling, rate limiting, and comprehensive data validation.
+The package has one entry point, `universities`, for both `import` and `require`. It exposes the dataset loader, an in-memory repository, a homepage scraper that obeys `robots.txt`, an enrichment pipeline, and helpers for CSV files. The generated [API reference](api.html) lists every export with its signature; this guide explains how the pieces fit together. Run `npm run docs` in a checkout to build both.
 
 ## Table of Contents
 
 - [Installation](#installation)
 - [Quick Start](#quick-start)
-- [API Reference](#api-reference)
-  - [UniversityScraper](#universityscraper)
-  - [University Interface](#university-interface)
-  - [Data Processing](#data-processing)
-- [Examples](#examples)
-- [Error Handling](#error-handling)
-- [Best Practices](#best-practices)
+- [UniversityScraper](#universityscraper)
+- [robots.txt](#robotstxt)
+- [Enrichment pipeline](#enrichment-pipeline)
+- [Modules and feeds](#modules-and-feeds)
+- [History store](#history-store)
+- [Geography and size helpers](#geography-and-size-helpers)
+- [Data processing](#data-processing)
+- [Errors](#errors)
+- [Best practices](#best-practices)
 
 ## Installation
 
@@ -22,420 +22,214 @@ The Universities package provides TypeScript/JavaScript utilities for scraping a
 npm install universities
 ```
 
+Node 20.19 or newer is required. The `--store` history feature needs Node 22.13 or newer.
+
 ## Quick Start
 
 ```typescript
 import { UniversityScraper } from 'universities';
 
-// Initialize the scraper
 const scraper = new UniversityScraper();
-
-// Scrape university data
-const universities = await scraper.scrapeUniversities(['https://example-university.edu']);
-
-console.log(universities);
-```
-
-## API Reference
-
-### UniversityScraper
-
-The main class for scraping university data from web sources.
-
-#### Constructor
-
-```typescript
-new UniversityScraper(options?: ScrapingOptions)
-```
-
-**Parameters:**
-
-- `options` (optional): Configuration options for the scraper
-
-**Options:**
-
-```typescript
-interface ScrapingOptions {
-  concurrency?: number; // Number of concurrent requests (default: 3)
-  retryAttempts?: number; // Number of retry attempts (default: 3)
-  timeout?: number; // Request timeout in milliseconds (default: 10000)
-  userAgent?: string; // Custom user agent string
-}
-```
-
-#### Methods
-
-##### `scrapeUniversities(urls: string[]): Promise<University[]>`
-
-Scrapes university data from the provided URLs.
-
-**Parameters:**
-
-- `urls`: Array of university website URLs to scrape
-
-**Returns:**
-
-- Promise that resolves to an array of `University` objects
-
-**Example:**
-
-```typescript
-const scraper = new UniversityScraper({
-  concurrency: 5,
-  timeout: 15000,
-});
-
-const universities = await scraper.scrapeUniversities([
-  'https://harvard.edu',
-  'https://mit.edu',
-  'https://stanford.edu',
-]);
-```
-
-##### `scrapeUniversity(url: string): Promise<University>`
-
-Scrapes data from a single university website.
-
-**Parameters:**
-
-- `url`: University website URL
-
-**Returns:**
-
-- Promise that resolves to a `University` object
-
-**Example:**
-
-```typescript
-const university = await scraper.scrapeUniversity('https://harvard.edu');
-```
-
-##### `validateUniversityData(data: Partial<University>): University`
-
-Validates and normalizes university data.
-
-**Parameters:**
-
-- `data`: Partial university data object
-
-**Returns:**
-
-- Complete `University` object with validated data
-
-**Throws:**
-
-- `ValidationError` if required fields are missing or invalid
-
-### University Interface
-
-The core data structure representing a university.
-
-```typescript
-interface University {
-  name: string; // University name (required)
-  domain: string; // Primary domain (required)
-  country: string; // Country name (required)
-  stateProvince?: string; // State or province (optional)
-  alphaTwoCode: string; // ISO 3166-1 alpha-2 country code (required)
-  webPages: string[]; // Array of web page URLs (required)
-  foundingYear?: number; // Year founded (optional)
-  type?: UniversityType; // Type of institution (optional)
-  studentCount?: number; // Number of students (optional)
-  location?: {
-    // Geographic location (optional)
-    city?: string;
-    latitude?: number;
-    longitude?: number;
-  };
-}
-```
-
-#### UniversityType Enum
-
-```typescript
-enum UniversityType {
-  PUBLIC = 'public',
-  PRIVATE = 'private',
-  COMMUNITY = 'community',
-  TECHNICAL = 'technical',
-  RELIGIOUS = 'religious',
-  MILITARY = 'military',
-  ONLINE = 'online',
-}
-```
-
-### Data Processing
-
-#### CSV Operations
-
-```typescript
-import { loadUniversitiesFromCSV, saveUniversitiesToCSV } from 'universities';
-
-// Load universities from CSV file
-const universities = await loadUniversitiesFromCSV('world-universities.csv');
-
-// Save universities to CSV file
-await saveUniversitiesToCSV(universities, 'output.csv');
-```
-
-#### Filtering and Search
-
-```typescript
-import { filterUniversities, searchUniversities } from 'universities';
-
-// Filter by country
-const usUniversities = filterUniversities(universities, {
+const result = await scraper.scrapeUniversityDetailed({
+  name: 'Massachusetts Institute of Technology',
+  countryCode: 'US',
   country: 'United States',
+  url: 'https://www.mit.edu/',
 });
 
-// Filter by founding year range
-const oldUniversities = filterUniversities(universities, {
-  foundingYearRange: { min: 1600, max: 1800 },
+console.log(result.status); // 'enriched' | 'failed' | 'blocked-by-robots'
+console.log(result.university.foundedYear, result.university.studentCount);
+```
+
+## UniversityScraper
+
+```text
+new UniversityScraper(config?: Partial<ScrapingConfig>)
+```
+
+Any option you leave out takes its default from `DEFAULT_SCRAPING_CONFIG`.
+
+| Option          | Default                                           | Meaning                                                                   |
+| --------------- | ------------------------------------------------- | ------------------------------------------------------------------------- |
+| `concurrency`   | `5`                                               | Pages fetched at once.                                                    |
+| `interval`      | `1000`                                            | Minimum milliseconds between any two requests (one request per interval). |
+| `hostInterval`  | `1000`                                            | Minimum milliseconds between requests to the same host.                   |
+| `timeout`       | `10000`                                           | Request timeout in milliseconds.                                          |
+| `retries`       | `3`                                               | Attempts per page, with a growing delay between them.                     |
+| `userAgent`     | `WorldUniversitiesBot/1.0 (Educational Research)` | Sent as `User-Agent`; its product token selects the robots.txt group.     |
+| `respectRobots` | `true`                                            | Read robots.txt and skip disallowed pages.                                |
+| `maxCrawlDelay` | `30000`                                           | A robots.txt `Crawl-delay` above this many milliseconds skips the site.   |
+| `robotsTtl`     | `3600000`                                         | How long a fetched robots.txt is reused, in milliseconds.                 |
+
+### Methods
+
+`scrapeUniversity(base: Partial<University>): Promise<University>` fetches `base.url`, extracts what it can and returns the base record merged with the findings. It does not throw for a page that fails or is disallowed: the base record comes back with a low `dataQuality` and no `sources`. It throws only when `base.url` is missing.
+
+`scrapeUniversityDetailed(base): Promise<ScrapeResult>` does the same and also tells you what happened:
+
+```typescript
+interface ScrapeResult {
+  university: University;
+  status: 'enriched' | 'failed' | 'blocked-by-robots';
+  reason?: string; // why it was not enriched
+}
+```
+
+`stats` returns running totals (`enriched`, `failed`, `blockedByRobots`, `pageRequests`, `retries`), `settings` the effective configuration, `getQueueStatus()` the queue depth, and `pause()`, `resume()` and `clear()` control the queue.
+
+What is extracted: description, contact (email, phone, social links), address, city and state, founding year, enrolment (`studentCount`, from phrases such as "45,000 students"), type, programs, faculties and motto.
+
+## robots.txt
+
+With `respectRobots` on (the default) the scraper fetches `<origin>/robots.txt` before the first page of a site and applies RFC 9309:
+
+- The group naming your user agent's product token wins; otherwise the `*` group. `Allow` and `Disallow` use the longest matching pattern (`*` and `$` supported), and `Allow` wins a tie.
+- 4xx (including 404): no restrictions. 5xx or a network error: the site counts as fully disallowed until the cached entry expires.
+- `Crawl-delay` becomes the minimum gap between requests to that host. A delay above `maxCrawlDelay` skips the site.
+
+The pieces are exported if you need them alone:
+
+```typescript
+import { parseRobots, selectRules, isPathAllowed, RobotsChecker } from 'universities';
+
+const rules = selectRules(parseRobots('User-agent: *\nDisallow: /private'), 'MyBot/1.0');
+isPathAllowed(rules, '/private/x'); // false
+isPathAllowed(rules, '/admissions'); // true
+
+const checker = new RobotsChecker({
+  userAgent: 'MyBot/1.0',
+  fetchText: async url => {
+    const response = await fetch(url);
+    return { status: response.status, body: await response.text() };
+  },
 });
-
-// Search by name
-const searchResults = searchUniversities(universities, 'Harvard');
+const decision = await checker.check('https://example.edu/admissions');
+// { allowed: true, crawlDelayMs?: number } or { allowed: false, reason: '...' }
 ```
 
-## Examples
+Only the first page of a visit is checked; a redirect to another host is followed without a second check.
 
-### Basic University Scraping
+## Enrichment pipeline
 
-```typescript
-import { UniversityScraper } from 'universities';
-
-async function scrapeTopUniversities() {
-  const scraper = new UniversityScraper({
-    concurrency: 3,
-    timeout: 10000,
-  });
-
-  const urls = ['https://harvard.edu', 'https://mit.edu', 'https://stanford.edu', 'https://caltech.edu'];
-
-  try {
-    const universities = await scraper.scrapeUniversities(urls);
-
-    universities.forEach(university => {
-      console.log(`${university.name} - ${university.country}`);
-      console.log(`Founded: ${university.foundingYear || 'Unknown'}`);
-      console.log(`Type: ${university.type || 'Unknown'}`);
-      console.log('---');
-    });
-  } catch (error) {
-    console.error('Scraping failed:', error.message);
-  }
-}
-
-scrapeTopUniversities();
-```
-
-### Data Processing and Export
+`runEnrichment` selects rows from the base CSV, runs a list of modules over each, caches the results and writes the dataset, telemetry and a provenance manifest.
 
 ```typescript
-import { UniversityScraper, loadUniversitiesFromCSV, saveUniversitiesToCSV, filterUniversities } from 'universities';
+import { runEnrichment, UniversityScraper, createHtmlScrapeModule, createClassificationModule } from 'universities';
 
-async function processUniversityData() {
-  // Load existing data
-  const existingUniversities = await loadUniversitiesFromCSV('world-universities.csv');
-
-  // Scrape additional universities
-  const scraper = new UniversityScraper();
-  const newUniversities = await scraper.scrapeUniversities([
-    'https://new-university1.edu',
-    'https://new-university2.edu',
-  ]);
-
-  // Combine datasets
-  const allUniversities = [...existingUniversities, ...newUniversities];
-
-  // Filter US universities founded after 1900
-  const modernUSUniversities = filterUniversities(allUniversities, {
-    country: 'United States',
-    foundingYearRange: { min: 1900 },
-  });
-
-  // Export filtered data
-  await saveUniversitiesToCSV(modernUSUniversities, 'modern-us-universities.csv');
-
-  console.log(`Processed ${allUniversities.length} total universities`);
-  console.log(`Found ${modernUSUniversities.length} modern US universities`);
-}
-
-processUniversityData();
-```
-
-### Advanced Configuration
-
-```typescript
-import { UniversityScraper } from 'universities';
-
-async function advancedScraping() {
-  const scraper = new UniversityScraper({
-    concurrency: 5, // Higher concurrency for faster scraping
-    retryAttempts: 5, // More retries for reliability
-    timeout: 20000, // Longer timeout for slow sites
-    userAgent: 'UniversityBot/1.0 (+https://example.com/bot)',
-  });
-
-  // Handle progress updates
-  scraper.on('progress', (completed, total) => {
-    console.log(`Progress: ${completed}/${total} (${Math.round((completed / total) * 100)}%)`);
-  });
-
-  // Handle individual results
-  scraper.on('university', university => {
-    console.log(`Scraped: ${university.name}`);
-  });
-
-  // Handle errors
-  scraper.on('error', (error, url) => {
-    console.error(`Failed to scrape ${url}:`, error.message);
-  });
-
-  const urls = [
-    // ... large list of university URLs
-  ];
-
-  const universities = await scraper.scrapeUniversities(urls);
-  return universities;
-}
-```
-
-## Error Handling
-
-The Universities package includes comprehensive error handling:
-
-### Error Types
-
-```typescript
-import { ScrapingError, ValidationError, NetworkError } from 'universities';
-
-try {
-  const universities = await scraper.scrapeUniversities(urls);
-} catch (error) {
-  if (error instanceof NetworkError) {
-    console.error('Network error:', error.message);
-    console.error('Failed URL:', error.url);
-  } else if (error instanceof ValidationError) {
-    console.error('Validation error:', error.message);
-    console.error('Invalid data:', error.data);
-  } else if (error instanceof ScrapingError) {
-    console.error('Scraping error:', error.message);
-    console.error('Error code:', error.code);
-  }
-}
-```
-
-### Retry Logic
-
-The scraper automatically retries failed requests with exponential backoff:
-
-```typescript
-const scraper = new UniversityScraper({
-  retryAttempts: 3, // Retry up to 3 times
-  retryDelay: 1000, // Start with 1 second delay
-  retryMultiplier: 2, // Double delay each retry
+const scraper = new UniversityScraper({ interval: 2000 });
+const result = await runEnrichment({
+  csv: 'world-universities.csv',
+  outDir: 'data',
+  countryCode: ['GB', 'IE'], // applied before start and limit
+  start: 0,
+  limit: 50,
+  concurrency: 3,
+  resume: true, // reuse outDir/cache; failed and robots-blocked ones are retried
+  snapshot: true, // copy the outputs to outDir/snapshots/<runId>/ with SHA256SUMS
+  modules: [createHtmlScrapeModule(scraper), createClassificationModule()],
+  onProgress: t => console.log(`${t.completed}/${t.total}, ETA ${t.etaSeconds ?? '?'}s`),
 });
 ```
 
-## Best Practices
+Everything is written under `outDir`: `cache/<id>.json`, `enriched-universities.json`, `telemetry.json`, `manifest.json` and, with `snapshot` or `publishDir`, `snapshots/`. A failure for one university never throws: it is counted in `result.telemetry` (`failed`, `blockedByRobots`, `failures`, `robotsBlockedHosts`, per-module `modules`). Abort with an `AbortSignal` (`signal`) to stop after the universities in progress; the result then has `telemetry.state === 'interrupted'`, no snapshot is written, and `resume: true` continues later.
 
-### 1. Rate Limiting
+`manifest.json` records the run id, tool and Node versions, the git commit (when the CSV is in a git checkout), SHA-256 hashes of the input and output, the filters, each module's name, version and configuration, and the outcome counts. Ids are assigned across the whole CSV before any filter, so `start` and `countryCode` never change an id; two rows that would share an id get their CSV row number appended.
 
-Always use appropriate concurrency settings to avoid overwhelming target servers:
+The same code runs from the command line: `universities enrich-all --help`, or `npm run enrich -- --help` in a checkout.
 
-```typescript
-const scraper = new UniversityScraper({
-  concurrency: 3, // Conservative concurrency
-  timeout: 10000, // Reasonable timeout
-});
-```
+## Modules and feeds
 
-### 2. Error Handling
-
-Implement comprehensive error handling for production applications:
+A module is an object with a `name`, a `version` and an `enrich(university)` method that returns `{ data?, status?, reason?, sources? }`. Modules run in order and each sees the record built so far. Throwing marks the module failed for that university; the run continues.
 
 ```typescript
-async function safeScraping(urls: string[]) {
-  const scraper = new UniversityScraper();
-  const results: University[] = [];
-  const errors: Array<{ url: string; error: Error }> = [];
+import type { EnrichmentModule } from 'universities';
 
-  for (const url of urls) {
-    try {
-      const university = await scraper.scrapeUniversity(url);
-      results.push(university);
-    } catch (error) {
-      errors.push({ url, error });
-    }
-  }
-
-  return { results, errors };
-}
+const logo: EnrichmentModule = {
+  name: 'logo-guesser',
+  version: '1',
+  async enrich(university) {
+    if (!university.domain) return { status: 'skipped', reason: 'no domain' };
+    return { data: { logo: `https://${university.domain}/favicon.ico` } };
+  },
+};
 ```
 
-### 3. Data Validation
-
-Always validate scraped data before using it:
+Built-in modules: `createHtmlScrapeModule(scraper)`, `createClassificationModule()` (continent, sub-region and size, never overwriting existing values) and `createFeedModule(feed)`. Feeds add rankings and accreditation from a file:
 
 ```typescript
-const universities = await scraper.scrapeUniversities(urls);
+import { loadFeed, createFeedModule } from 'universities';
 
-const validUniversities = universities.filter(uni => {
-  return uni.name && uni.domain && uni.country && uni.alphaTwoCode;
-});
+const feed = await loadFeed('qs-2026.csv'); // columns: source,rank,year,domain[,category,rankingUrl,accreditation]
+const module = createFeedModule(feed);
 ```
 
-### 4. Caching
+A university is matched by `domain` first, then by country code plus a normalised name (case, accents, punctuation and a leading "the" are ignored). A JSON feed is an array of `{ domain?, countryCode?, name?, rankings?, accreditation? }`. `mergeUniversity(base, patch)` is the merge the pipeline uses: it combines `rankings` (by source, year and category), `accreditation` and `sources` without duplicates and lets other defined fields replace the old value.
 
-Implement caching for repeated requests:
+## History store
 
 ```typescript
-import NodeCache from 'node-cache';
+import { SqliteStore } from 'universities';
 
-const cache = new NodeCache({ stdTTL: 3600 }); // 1 hour cache
-
-async function cachedScraping(url: string) {
-  const cached = cache.get(url);
-  if (cached) {
-    return cached;
-  }
-
-  const university = await scraper.scrapeUniversity(url);
-  cache.set(url, university);
-  return university;
-}
+const store = new SqliteStore('history.db'); // throws on Node older than 22.13
+await runEnrichment({ /* ... */ store });
+store.history('gb-university-of-leeds-leeds-ac-uk'); // [{ runId, changedAt, changeType, changes: { field: { from, to } } }]
+store.close();
 ```
 
-### 5. Monitoring
+Each run upserts every record. A record that did not change adds nothing; `lastUpdated` alone never counts as a change. `SqliteStore.isSupported()` tells you whether this Node can open one.
 
-Monitor scraping performance and errors:
+## Geography and size helpers
 
 ```typescript
-const scraper = new UniversityScraper();
+import { inferGeography, estimateSize } from 'universities';
 
-let totalRequests = 0;
-let successfulRequests = 0;
-let failedRequests = 0;
-
-scraper.on('university', () => successfulRequests++);
-scraper.on('error', () => failedRequests++);
-scraper.on('request', () => totalRequests++);
-
-// Log statistics periodically
-setInterval(() => {
-  console.log(`Stats: ${successfulRequests}/${totalRequests} successful, ${failedRequests} failed`);
-}, 30000);
+inferGeography('gb'); // { continent: 'Europe', subregion: 'Northern Europe' }
+inferGeography('ZZ'); // undefined
+estimateSize(20000); // 'large'
 ```
+
+`inferGeography` uses the UN geoscheme and knows every country code in the dataset. `estimateSize` uses the thresholds documented on `UniversitySize`: under 1,000, 1,000 to 5,000, 5,000 to 15,000, 15,000 to 30,000 and over 30,000 students.
+
+## Data processing
+
+```typescript
+import {
+  loadBaseUniversities,
+  loadUniversitiesFromCSV,
+  saveUniversitiesToCSV,
+  filterUniversities,
+  searchUniversities,
+  validateUniversityData,
+} from 'universities';
+
+const rows = await loadBaseUniversities('world-universities.csv'); // headerless: countryCode,name,url
+
+await saveUniversitiesToCSV(universities, 'export.csv'); // adds continent and subregion columns
+const loaded = await loadUniversitiesFromCSV('export.csv');
+
+filterUniversities(loaded, { country: 'France', type: 'public', foundedYearRange: { min: 1800 } });
+searchUniversities(loaded, 'technology');
+validateUniversityData({ name: 'X', country: 'France', countryCode: 'FR', url: 'https://x.fr' }); // throws on bad input
+```
+
+`UniversityRepository` adds searching, sorting, pagination and statistics over an array of `University` objects (`search`, `stats`, `getAll`, `setData`).
+
+## Errors
+
+`ScrapingError`, `ValidationError` and `NetworkError` are exported for your own code. The scraper reports page failures through `ScrapeResult.status` and `reason` rather than throwing them. `loadUniversitiesFromCSV` and `saveUniversitiesToCSV` throw an `Error` whose `cause` is the original error.
+
+## Best practices
+
+- Leave `respectRobots` on. Use `--ignore-robots` or `respectRobots: false` only for sites you own or have permission to scrape.
+- Identify yourself: set `userAgent` to something with a contact URL, for example `MyResearchBot/1.0 (+https://example.org/bot)`.
+- Start small (`limit: 25`), look at `telemetry.json`, then widen. Keep `concurrency` low; the per-host spacing protects each site, not the network.
+- Use `resume` for long runs and `--snapshot` when you want a dataset you can verify later with `shasum -a 256 -c SHA256SUMS`.
+- Record `manifest.json` next to any dataset you publish.
 
 ## Support
 
-For issues, feature requests, or questions:
-
-- GitHub Issues: [https://github.com/username/universities/issues](https://github.com/username/universities/issues)
-- Documentation: [https://github.com/username/universities/docs](https://github.com/username/universities/docs)
-- Examples: [https://github.com/username/universities/examples](https://github.com/username/universities/examples)
+Open an issue at https://github.com/Vaporjawn/universities/issues.
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT. See `LICENSE`.

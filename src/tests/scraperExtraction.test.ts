@@ -45,7 +45,8 @@ describe('UniversityScraper extraction', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockedAxios.get.mockReset();
-    scraper = new UniversityScraper();
+    // These tests are about page parsing and retries; robots.txt and host spacing have their own tests.
+    scraper = new UniversityScraper({ respectRobots: false, hostInterval: 0 });
     warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
 
@@ -95,7 +96,13 @@ describe('UniversityScraper extraction', () => {
     });
 
     it('sends the configured user agent and timeout', async () => {
-      const custom = new UniversityScraper({ ...DEFAULT_SCRAPING_CONFIG, userAgent: 'TestBot/1.0', timeout: 1234 });
+      const custom = new UniversityScraper({
+        ...DEFAULT_SCRAPING_CONFIG,
+        userAgent: 'TestBot/1.0',
+        timeout: 1234,
+        respectRobots: false,
+        hostInterval: 0,
+      });
       await scrape(custom, page(''));
       expect(mockedAxios.get).toHaveBeenCalledWith(
         'https://fixture.edu',

@@ -65,6 +65,12 @@ describe('public API', () => {
       'validateUniversityData',
       'DEFAULT_SCRAPING_OPTIONS',
       'DEFAULT_SCRAPING_CONFIG',
+      'RobotsChecker',
+      'inferGeography',
+      'estimateSize',
+      'runEnrichment',
+      'SqliteStore',
+      'createHtmlScrapeModule',
     ].forEach(name => expect(publicApi).toHaveProperty(name));
   });
 });

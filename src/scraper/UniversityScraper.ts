@@ -2,6 +2,7 @@ import axios, { AxiosResponse } from 'axios';
 import * as cheerio from 'cheerio';
 import PQueue from 'p-queue';
 import { University, UniversityType, DegreeLevel, DataQuality } from '../types/University';
+import { HostThrottle, RobotsChecker } from './robots';
 
 /**
  * Configuration for web scraping operations
@@ -12,7 +13,14 @@ export interface ScrapingConfig {
   timeout: number; // request timeout in milliseconds
   retries: number;
   userAgent: string;
+  /** Read robots.txt before fetching a page and skip pages it disallows. Default `true`. */
   respectRobots: boolean;
+  /** Minimum milliseconds between requests to the same host. A larger robots.txt `Crawl-delay` wins. Default 1000. */
+  hostInterval?: number;
+  /** A robots.txt `Crawl-delay` above this many milliseconds makes the scraper skip the site. Default 30000. */
+  maxCrawlDelay?: number;
+  /** How long a fetched robots.txt is reused, in milliseconds. Default one hour. */
+  robotsTtl?: number;
 }
 
 /**
@@ -25,6 +33,49 @@ export const DEFAULT_SCRAPING_CONFIG: ScrapingConfig = {
   retries: 3,
   userAgent: 'WorldUniversitiesBot/1.0 (Educational Research)',
   respectRobots: true,
+  hostInterval: 1000,
+  maxCrawlDelay: 30000,
+  robotsTtl: 60 * 60 * 1000,
+};
+
+/** How one scrape ended. */
+export type ScrapeStatus = 'enriched' | 'failed' | 'blocked-by-robots';
+
+/** A scraped university together with how the scrape went. */
+export interface ScrapeResult {
+  university: University;
+  status: ScrapeStatus;
+  /** Why the scrape did not enrich the record. Not set when `status` is `enriched`. */
+  reason?: string;
+}
+
+/** Running totals for one scraper instance. */
+export interface ScraperCounters {
+  enriched: number;
+  failed: number;
+  blockedByRobots: number;
+  /** HTTP requests sent for pages, including retries. */
+  pageRequests: number;
+  retries: number;
+}
+
+/**
+ * Build the id used for cache files and enriched records: `<country>-<name>-<domain>`, lower-case, with every
+ * character outside a-z and 0-9 replaced by a hyphen. It does not guarantee uniqueness; the enrichment pipeline
+ * adds the CSV row number when two rows collide.
+ */
+export const universityIdFor = (university: Partial<University>): string => {
+  const name = university.name || 'unknown';
+  const country = university.countryCode || university.country || 'unknown';
+  let domain = 'unknown';
+  if (university.url) {
+    try {
+      domain = new URL(university.url).hostname;
+    } catch {
+      [domain] = university.url.replace(/^https?:\/\//, '').split('/');
+    }
+  }
+  return `${country.toLowerCase()}-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${domain.replace(/[^a-z0-9]/g, '-')}`;
 };
 
 /**
@@ -33,14 +84,41 @@ export const DEFAULT_SCRAPING_CONFIG: ScrapingConfig = {
 export class UniversityScraper {
   private queue: PQueue;
   private config: ScrapingConfig;
+  private readonly robots?: RobotsChecker;
+  private readonly throttle = new HostThrottle();
+  private readonly counters: ScraperCounters = {
+    enriched: 0,
+    failed: 0,
+    blockedByRobots: 0,
+    pageRequests: 0,
+    retries: 0,
+  };
 
-  constructor(config: ScrapingConfig = DEFAULT_SCRAPING_CONFIG) {
-    this.config = config;
+  constructor(config: Partial<ScrapingConfig> = DEFAULT_SCRAPING_CONFIG) {
+    this.config = { ...DEFAULT_SCRAPING_CONFIG, ...config };
     this.queue = new PQueue({
-      concurrency: config.concurrency,
-      interval: config.interval,
+      concurrency: this.config.concurrency,
+      interval: this.config.interval,
       intervalCap: 1,
     });
+    if (this.config.respectRobots) {
+      this.robots = new RobotsChecker({
+        userAgent: this.config.userAgent,
+        ttlMs: this.config.robotsTtl,
+        maxCrawlDelayMs: this.config.maxCrawlDelay,
+        fetchText: url => this.fetchRobotsText(url),
+      });
+    }
+  }
+
+  /** The effective configuration, with defaults filled in. */
+  get settings(): Readonly<ScrapingConfig> {
+    return this.config;
+  }
+
+  /** Running totals since this scraper was created. */
+  get stats(): Readonly<ScraperCounters> {
+    return { ...this.counters };
   }
 
   /** Maximum number of requests the scraper runs at once. */
@@ -49,25 +127,48 @@ export class UniversityScraper {
   }
 
   /**
-   * Extract university information from a website
+   * Extract university information from a website. Failures and robots.txt refusals do not throw: the base
+   * record is returned with a low data-quality score. Use {@link scrapeUniversityDetailed} to learn which happened.
    */
   async scrapeUniversity(baseUniversity: Partial<University>): Promise<University> {
+    return (await this.scrapeUniversityDetailed(baseUniversity)).university;
+  }
+
+  /**
+   * Like {@link scrapeUniversity}, but also reports whether the page was enriched, failed, or was skipped because
+   * robots.txt disallows it.
+   */
+  async scrapeUniversityDetailed(baseUniversity: Partial<University>): Promise<ScrapeResult> {
     if (!baseUniversity.url) {
       throw new Error('University URL is required for scraping');
     }
-    return new Promise<University>(resolve => {
+    return new Promise<ScrapeResult>(resolve => {
       this.queue.add(async () => {
         let enrichedData: Partial<University> = {};
+        let status: ScrapeStatus = 'enriched';
+        let reason: string | undefined;
         try {
-          const response = await this.fetchWithRetry(baseUniversity.url!);
-          const $ = cheerio.load(response.data);
-          enrichedData = await this.extractUniversityData($, baseUniversity);
+          const decision = this.robots ? await this.robots.check(baseUniversity.url!) : { allowed: true };
+          if (!decision.allowed) {
+            status = 'blocked-by-robots';
+            ({ reason } = decision);
+            this.counters.blockedByRobots++;
+            console.warn(`Skipped ${baseUniversity.url}: ${reason}`);
+          } else {
+            const response = await this.fetchWithRetry(baseUniversity.url!, decision.crawlDelayMs);
+            const $ = cheerio.load(response.data);
+            enrichedData = await this.extractUniversityData($, baseUniversity);
+          }
         } catch (err) {
           const msg = (err as Error)?.message || String(err);
+          status = 'failed';
+          reason = msg;
+          this.counters.failed++;
           console.warn(`Failed to scrape ${baseUniversity.url}: ${msg}`);
         }
 
         const success = Object.keys(enrichedData).length > 0;
+        if (status === 'enriched') this.counters.enriched++;
         const dataQuality = success
           ? this.assessDataQuality(enrichedData)
           : {
@@ -78,22 +179,40 @@ export class UniversityScraper {
             };
 
         resolve({
-          ...baseUniversity,
-          ...enrichedData,
-          id: this.generateUniversityId(baseUniversity),
-          lastUpdated: new Date(),
-          dataQuality,
-          sources: success && baseUniversity.url ? [baseUniversity.url] : [],
-        } as University);
+          university: {
+            ...baseUniversity,
+            ...enrichedData,
+            id: this.generateUniversityId(baseUniversity),
+            lastUpdated: new Date(),
+            dataQuality,
+            sources: success && baseUniversity.url ? [baseUniversity.url] : [],
+          } as University,
+          status,
+          reason,
+        });
       });
     });
+  }
+
+  /** Fetch `<origin>/robots.txt` for the robots checker. Any HTTP status is returned, not thrown. */
+  private async fetchRobotsText(url: string): Promise<{ status: number; body: string }> {
+    const response = await axios.get(url, {
+      timeout: this.config.timeout,
+      headers: { 'User-Agent': this.config.userAgent, Accept: 'text/plain,*/*;q=0.5' },
+      maxRedirects: 5,
+      responseType: 'text',
+      validateStatus: () => true,
+    });
+    return { status: response.status, body: typeof response.data === 'string' ? response.data : '' };
   }
 
   /**
    * Fetch URL with retry logic
    */
-  private async fetchWithRetry(url: string, attempt = 1): Promise<AxiosResponse> {
+  private async fetchWithRetry(url: string, crawlDelayMs = 0, attempt = 1): Promise<AxiosResponse> {
     try {
+      await this.throttle.wait(this.extractDomain(url), Math.max(this.config.hostInterval ?? 0, crawlDelayMs));
+      this.counters.pageRequests++;
       const response = await axios.get(url, {
         timeout: this.config.timeout,
         headers: {
@@ -109,8 +228,9 @@ export class UniversityScraper {
       return response;
     } catch (error) {
       if (attempt < this.config.retries) {
-        await this.delay(1000 * attempt); // Exponential backoff
-        return this.fetchWithRetry(url, attempt + 1);
+        this.counters.retries++;
+        await this.delay(1000 * attempt); // Linear backoff
+        return this.fetchWithRetry(url, crawlDelayMs, attempt + 1);
       }
       throw error;
     }
@@ -139,6 +259,9 @@ export class UniversityScraper {
 
     // Extract founding year
     data.foundedYear = this.extractFoundingYear($);
+
+    // Extract enrolment, used to estimate the size class
+    data.studentCount = this.extractStudentCount($);
 
     // Extract university type
     data.type = this.classifyUniversityType($, baseUniversity.name || '');
@@ -300,6 +423,26 @@ export class UniversityScraper {
       }
     }
 
+    return undefined;
+  }
+
+  /**
+   * Extract enrolment from phrases such as "45,000 students" or "enrolment of 12,500". Counts below 100 or above
+   * 1,000,000 are ignored as page noise ("3 students per lab").
+   */
+  private extractStudentCount($: cheerio.CheerioAPI): number | undefined {
+    const text = $('body').text();
+    const patterns = [
+      /([\d]{1,3}(?:[,.\s]\d{3})+|\d{3,7})\s+(?:enrolled\s+)?(?:students|undergraduates)/i,
+      /(?:enrol(?:l)?ment|student\s+body)(?:\s+(?:of|is|was))?\s*:?\s*([\d]{1,3}(?:[,.\s]\d{3})+|\d{3,7})/i,
+    ];
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match) {
+        const count = parseInt(match[1].replace(/[,.\s]/g, ''), 10);
+        if (count >= 100 && count <= 1_000_000) return count;
+      }
+    }
     return undefined;
   }
 
@@ -521,14 +664,7 @@ export class UniversityScraper {
    * Generate unique university ID
    */
   generateUniversityId(university: Partial<University>): string {
-    const name = university.name || 'unknown';
-    const country = university.countryCode || university.country || 'unknown';
-    const domain = university.url ? this.extractDomain(university.url) : 'unknown';
-
-    return `${country.toLowerCase()}-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${domain.replace(
-      /[^a-z0-9]/g,
-      '-'
-    )}`;
+    return universityIdFor(university);
   }
 
   /**

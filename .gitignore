@@ -38,3 +38,6 @@ src/**/*.js
 
 # output of `npm run enrich` (scraped cache and enriched dataset)
 /data/
+
+# generated documentation site (npm run docs)
+/site/

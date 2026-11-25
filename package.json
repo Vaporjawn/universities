@@ -5,14 +5,20 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.19.0"
   },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "require": "./dist/index.js",
-      "import": "./dist/index.js"
-    }
+      "import": {
+        "types": "./dist/esm/index.d.mts",
+        "default": "./dist/esm/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./package.json": "./package.json"
   },
   "bin": {
     "universities": "dist/cli.js"
@@ -27,8 +33,8 @@
   "scripts": {
     "start": "ts-node ./src/index.ts",
     "build": "./scripts/build.sh",
-    "build:publish": "npm run build:tsc && npm run lint && npm run format:check && npm run test",
-    "build:tsc": "rimraf dist && tsc -p tsconfig.build.json",
+    "build:publish": "npm run build:tsc && npm run verify:dist && npm run lint && npm run format:check && npm run test",
+    "build:tsc": "rimraf dist && tsc -p tsconfig.build.json && node scripts/buildEsm.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -37,16 +43,18 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "type-check": "tsc --noEmit",
-    "docs": "jsdoc -d docs/jsdoc/ src/**/*.ts",
-    "docs:generate": "jsdoc -d docs/jsdoc/ src/**/*.ts",
-    "clean": "rimraf dist coverage docs/jsdoc",
+    "docs": "ts-node ./scripts/buildDocsSite.ts",
+    "docs:generate": "ts-node ./scripts/buildDocsSite.ts",
+    "clean": "rimraf dist coverage site",
     "generate:data": "ts-node ./scripts/generateBaseData.ts",
     "enrich": "ts-node ./scripts/enrich.ts",
     "sync:us": "ts-node ./scripts/syncUsFromIpeds.ts",
     "validate:data": "ts-node ./scripts/validateData.ts",
     "check": "npm install && npm run build && npm run format && npm run lint && npm run test:coverage",
     "prepare": "npm run build:tsc",
-    "prepublishOnly": "npm run build:publish"
+    "prepublishOnly": "npm run build:publish",
+    "verify:dist": "node scripts/verifyDist.js",
+    "enrich:snapshot": "ts-node ./scripts/enrich.ts --snapshot"
   },
   "repository": {
     "type": "git",
@@ -84,14 +92,16 @@
     "@eslint/js": "^10.0.1",
     "@types/fs-extra": "^11.0.4",
     "@types/jest": "^30.0.0",
+    "@types/markdown-it": "^14.2.0",
     "@types/nock": "^11.1.0",
     "@types/node": "^20.19.43",
     "@typescript-eslint/eslint-plugin": "^8.74.0",
     "@typescript-eslint/parser": "^8.74.0",
+    "esbuild": "^0.28.2",
     "eslint": "^10.15.0",
     "eslint-plugin-prettier": "^5.5.7",
     "jest": "^30.5.2",
-    "jsdoc": "^4.0.5",
+    "markdown-it": "^15.0.3",
     "nock": "^15.0.6",
     "prettier": "^3.10.1",
     "rimraf": "^6.1.4",
@@ -112,5 +122,6 @@
   "overrides": {
     "glob": "^14.0.6",
     "minimatch": "^11.0.9"
-  }
+  },
+  "module": "dist/esm/index.mjs"
 }

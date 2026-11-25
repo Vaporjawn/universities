@@ -301,10 +301,10 @@ describe('dataProcessing', () => {
       );
       const [header, line] = fs.readFileSync(file, 'utf8').split('\n');
       expect(header).toBe(
-        'id,name,country,countryCode,url,domain,city,state,region,foundedYear,type,studentCount,latitude,longitude,description'
+        'id,name,country,countryCode,url,domain,city,state,region,foundedYear,type,studentCount,latitude,longitude,description,continent,subregion'
       );
       expect(line).toBe(
-        'us-example-university,"University of California, Berkeley",United States,US,http://www.example.edu/,,,,,1868,,,37.87,-122.26,'
+        'us-example-university,"University of California, Berkeley",United States,US,http://www.example.edu/,,,,,1868,,,37.87,-122.26,,,'
       );
     });
 

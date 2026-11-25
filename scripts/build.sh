@@ -24,16 +24,17 @@ npm run lint
 echo "✨ Checking code formatting..."
 npm run format:check
 
-# Run TypeScript compilation
+# Run TypeScript compilation (CommonJS and ES module builds)
 echo "🔨 Compiling TypeScript..."
 npm run build:tsc
+npm run verify:dist
 
 # Run tests with coverage
 echo "🧪 Running tests with coverage..."
 npm run test:coverage
 
-# Generate documentation
-echo "📚 Generating documentation..."
+# Generate documentation site
+echo "📚 Generating documentation site..."
 npm run docs:generate
 
 # Package for distribution
@@ -42,5 +43,5 @@ npm pack --pack-destination "$(mktemp -d)"
 
 echo "✅ Build completed successfully!"
 echo "📊 Coverage report available in coverage/"
-echo "📚 Documentation available in docs/"
+echo "📚 Documentation site available in site/"
 echo "📦 Package ready for publishing"
