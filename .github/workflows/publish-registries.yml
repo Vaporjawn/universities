@@ -1,0 +1,78 @@
+# Keeps the npm registry and GitHub Packages in step. Every run publishes the
+# version in package.json to GitHub Packages (as @<owner>/<name>, which is what
+# makes it show on the owner's Packages tab) and, when the NPM_TOKEN secret
+# exists, to npmjs.com too. A version that is already published is skipped, so
+# re-running is safe. The last step warns if the two registries disagree.
+name: Publish to npm and GitHub Packages
+
+on:
+  push:
+    branches: [main]
+    paths: [package.json]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Read package identity
+        id: pkg
+        run: |
+          OWNER=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "scoped=@${OWNER}/${NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Install and build
+        run: |
+          if [ -f package-lock.json ]; then npm ci; fi
+          npm run build --if-present
+
+      - name: Publish to npmjs.com
+        if: env.NPM_TOKEN != ''
+        run: |
+          if npm view "${{ steps.pkg.outputs.name }}@${{ steps.pkg.outputs.version }}" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+            echo "npm already has ${{ steps.pkg.outputs.name }}@${{ steps.pkg.outputs.version }}"
+          else
+            echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "${RUNNER_TEMP}/npmrc-npmjs"
+            npm publish --ignore-scripts --access public --userconfig "${RUNNER_TEMP}/npmrc-npmjs"
+          fi
+
+      - name: Publish to GitHub Packages
+        run: |
+          REG=https://npm.pkg.github.com
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" > "${RUNNER_TEMP}/npmrc-gpr"
+          if npm view "${{ steps.pkg.outputs.scoped }}@${{ steps.pkg.outputs.version }}" version --registry=$REG --userconfig "${RUNNER_TEMP}/npmrc-gpr" >/dev/null 2>&1; then
+            echo "GitHub Packages already has ${{ steps.pkg.outputs.scoped }}@${{ steps.pkg.outputs.version }}"
+          else
+            npm pkg set name="${{ steps.pkg.outputs.scoped }}"
+            npm pkg delete publishConfig.registry
+            npm publish --ignore-scripts --registry=$REG --userconfig "${RUNNER_TEMP}/npmrc-gpr"
+          fi
+
+      - name: Check both registries match
+        run: |
+          NPM_V=$(npm view "${{ steps.pkg.outputs.name }}" version --registry=https://registry.npmjs.org 2>/dev/null || echo none)
+          echo "package.json: ${{ steps.pkg.outputs.version }}  npm: ${NPM_V}"
+          echo "### Registry versions" >> "$GITHUB_STEP_SUMMARY"
+          echo "- package.json: \`${{ steps.pkg.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- npmjs.com: \`${NPM_V}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- GitHub Packages: \`${{ steps.pkg.outputs.scoped }}@${{ steps.pkg.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${NPM_V}" != "${{ steps.pkg.outputs.version }}" ]; then
+            echo "::warning::npm has ${NPM_V} but package.json and GitHub Packages have ${{ steps.pkg.outputs.version }}. Run npm publish, or add an NPM_TOKEN secret so this workflow does it."
+          fi
